@@ -1,54 +1,68 @@
 <script lang="ts">
-  import { movements, workoutPlan, todayLog, dailyLogs, tapSet, logWeight, logReps, lastWeights, lastReps, todayDayIndex } from '../stores/workout';
-  import { MUSCLE_META, DAY_FULL, type Movement } from '../types';
+  import {
+    movements,
+    workoutPlan,
+    todayLog,
+    dailyLogs,
+    tapSet,
+    logWeight,
+    logReps,
+    lastWeights,
+    lastReps,
+    todayDayIndex,
+  } from "../stores/workout";
+  import { MUSCLE_META, DAY_FULL, type Movement } from "../types";
 
   // ── Computed today data ──────────────────────────────────────
-  const now      = new Date();
-  const dayIdx   = todayDayIndex();
-  const hour     = now.getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const now = new Date();
+  const dayIdx = todayDayIndex();
+  const hour = now.getHours();
+  const greeting =
+    hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
-  const dateStr = now.toLocaleDateString('en-US', {
-    weekday: 'long',
-    month:   'long',
-    day:     'numeric',
+  const dateStr = now.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
   });
 
   // Reactive references from stores
-  let plan       = $derived($workoutPlan.days[dayIdx]);
+  let plan = $derived($workoutPlan.days[dayIdx]);
   let todayMoves = $derived(
     (plan?.movementIds ?? [])
-      .map(id => $movements.find(m => m.id === id))
-      .filter((m): m is Movement => m !== undefined)
+      .map((id) => $movements.find((m) => m.id === id))
+      .filter((m): m is Movement => m !== undefined),
   );
 
-  let totalSets     = $derived(todayMoves.reduce((s, m) => s + m.sets, 0));
+  let totalSets = $derived(todayMoves.reduce((s, m) => s + m.sets, 0));
   let completedSets = $derived(
-    todayMoves.reduce((s, m) => s + ($todayLog.completedSets[m.id] ?? 0), 0)
+    todayMoves.reduce((s, m) => s + ($todayLog.completedSets[m.id] ?? 0), 0),
   );
-  let progress   = $derived(totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0);
+  let progress = $derived(
+    totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0,
+  );
   let isComplete = $derived(totalSets > 0 && completedSets >= totalSets);
 
   // Total volume logged today (sum of weight × reps for each completed set)
   let totalVolume = $derived(
     todayMoves.reduce((vol, m) => {
-      const done    = $todayLog.completedSets[m.id] ?? 0;
+      const done = $todayLog.completedSets[m.id] ?? 0;
       const weights = $todayLog.weights[m.id] ?? [];
       for (let i = 0; i < done; i++) {
         vol += (weights[i] ?? 0) * m.reps;
       }
       return vol;
-    }, 0)
+    }, 0),
   );
 
   // ── Weight + Reps logging sheet ─────────────────────────────
-  let sheetMove   = $state<Movement | null>(null);
-  let sheetSetNum = $state(0);   // 1-indexed
+  let sheetMove = $state<Movement | null>(null);
+  let sheetSetNum = $state(0); // 1-indexed
   let sheetWeight = $state(0);
-  let sheetReps   = $state(0);   // actual reps for this set
+  let sheetReps = $state(0); // actual reps for this set
 
   function openWeightSheet(move: Movement, setNum: number) {
-    sheetMove   = move;
+    sheetMove = move;
     sheetSetNum = setNum;
     // Weight pre-fill: today set → today prev set → last session → 0
     const todayWArr = $todayLog.weights[move.id] ?? [];
@@ -66,7 +80,9 @@
       move.reps;
   }
 
-  function closeSheet() { sheetMove = null; }
+  function closeSheet() {
+    sheetMove = null;
+  }
 
   function confirmSet() {
     if (!sheetMove) return;
@@ -78,9 +94,15 @@
     closeSheet();
   }
 
-  function undoSet(movId: string, setNum: number) { tapSet(movId, setNum); }
-  function adjustWeight(delta: number) { sheetWeight = Math.max(0, sheetWeight + delta); }
-  function adjustReps(delta: number)   { sheetReps   = Math.max(1, sheetReps   + delta); }
+  function undoSet(movId: string, setNum: number) {
+    tapSet(movId, setNum);
+  }
+  function adjustWeight(delta: number) {
+    sheetWeight = Math.max(0, sheetWeight + delta);
+  }
+  function adjustReps(delta: number) {
+    sheetReps = Math.max(1, sheetReps + delta);
+  }
 
   // ── Progress sheet ───────────────────────────────────────────
   let progressMove = $state<Movement | null>(null);
@@ -113,40 +135,44 @@
 
   function getWeekProgress(movId: string): WeekDay[] {
     const today = new Date();
-    const dow   = today.getDay();
+    const dow = today.getDay();
     const diffToMon = dow === 0 ? -6 : 1 - dow;
     const monday = new Date(today);
     monday.setDate(today.getDate() + diffToMon);
     monday.setHours(0, 0, 0, 0);
 
-    const todayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-    const labels   = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
     return labels.map((label, i) => {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
-      const key  = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-      const log  = $dailyLogs.find(l => l.date === key);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const log = $dailyLogs.find((l) => l.date === key);
       const allW = log?.weights?.[movId] ?? [];
-      const nonZ = allW.filter(x => x > 0);
+      const nonZ = allW.filter((x) => x > 0);
       // Reps: session reps if logged, else movement default for any completed set
-      const allR  = (log?.sessionReps ?? {})[movId] ?? [];
-      const nonZR = allR.filter(x => x > 0);
+      const allR = (log?.sessionReps ?? {})[movId] ?? [];
+      const nonZR = allR.filter((x) => x > 0);
       const completedCount = log?.completedSets[movId] ?? 0;
       return {
-        date:      key,
-        dayLabel:  label,
-        isToday:   key === todayKey,
-        hasData:   nonZ.length > 0,
-        hasReps:   nonZR.length > 0 || completedCount > 0,
+        date: key,
+        dayLabel: label,
+        isToday: key === todayKey,
+        hasData: nonZ.length > 0,
+        hasReps: nonZR.length > 0 || completedCount > 0,
         maxWeight: nonZ.length ? Math.max(...nonZ) : 0,
-        avgWeight: nonZ.length ? Math.round(nonZ.reduce((a,b) => a+b,0)/nonZ.length) : 0,
-        maxReps:   nonZR.length ? Math.max(...nonZR) : completedCount > 0 ? 0 : 0,
-        avgReps:   nonZR.length ? Math.round(nonZR.reduce((a,b) => a+b,0)/nonZR.length) : 0,
-        totalReps: nonZR.length ? nonZR.reduce((a,b) => a+b,0) : 0,
-        sets:      completedCount,
-        weights:   allW,
-        reps:      allR,
+        avgWeight: nonZ.length
+          ? Math.round(nonZ.reduce((a, b) => a + b, 0) / nonZ.length)
+          : 0,
+        maxReps: nonZR.length ? Math.max(...nonZR) : completedCount > 0 ? 0 : 0,
+        avgReps: nonZR.length
+          ? Math.round(nonZR.reduce((a, b) => a + b, 0) / nonZR.length)
+          : 0,
+        totalReps: nonZR.length ? nonZR.reduce((a, b) => a + b, 0) : 0,
+        sets: completedCount,
+        weights: allW,
+        reps: allR,
       };
     });
   }
@@ -154,22 +180,28 @@
   // Also keep past sessions list for the detail rows
   function getPastSessions(movId: string) {
     return $dailyLogs
-      .filter(log => {
+      .filter((log) => {
         const w = log.weights?.[movId];
         const r = log.sessionReps?.[movId];
-        return (w && w.some(x => x > 0)) || (r && r.some(x => x > 0)) ||
-               (log.completedSets[movId] ?? 0) > 0;
+        return (
+          (w && w.some((x) => x > 0)) ||
+          (r && r.some((x) => x > 0)) ||
+          (log.completedSets[movId] ?? 0) > 0
+        );
       })
-      .map(log => {
-        const allW  = log.weights?.[movId] ?? [];
-        const allR  = (log.sessionReps ?? {})[movId] ?? [];
-        const d     = new Date(log.date + 'T00:00:00');
+      .map((log) => {
+        const allW = log.weights?.[movId] ?? [];
+        const allR = (log.sessionReps ?? {})[movId] ?? [];
+        const d = new Date(log.date + "T00:00:00");
         return {
-          date:    log.date,
-          label:   d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          date: log.date,
+          label: d.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          }),
           weights: allW,
-          reps:    allR,
-          sets:    log.completedSets[movId] ?? 0,
+          reps: allR,
+          sets: log.completedSets[movId] ?? 0,
         };
       })
       .sort((a, b) => b.date.localeCompare(a.date))
@@ -177,10 +209,12 @@
   }
 
   // ── Progress chart mode ──────────────────────────────────────
-  let chartMode = $state<'weight' | 'reps'>('weight');
+  let chartMode = $state<"weight" | "reps">("weight");
 
   // Reset chart mode whenever a new movement is opened
-  $effect(() => { if (progressMove) chartMode = 'weight'; });
+  $effect(() => {
+    if (progressMove) chartMode = "weight";
+  });
 </script>
 
 <main class="page" id="overview-page">
@@ -239,9 +273,20 @@
           <span class="stat-box-val">{totalSets}</span>
           <span class="stat-box-lbl">Sets</span>
         </div>
-        <div class="stat-box" style="border-color: rgba(167,139,250,0.2); background: var(--accent-dim);">
-          <span class="stat-box-val" style="color: var(--accent);">{totalVolume > 0 ? (totalVolume >= 1000 ? (totalVolume/1000).toFixed(1)+'k' : totalVolume) : '—'}</span>
-          <span class="stat-box-lbl" style="color: var(--accent); opacity: 0.7;">Vol (kg)</span>
+        <div
+          class="stat-box"
+          style="border-color: rgba(167,139,250,0.2); background: var(--accent-dim);"
+        >
+          <span class="stat-box-val" style="color: var(--accent);"
+            >{totalVolume > 0
+              ? totalVolume >= 1000
+                ? (totalVolume / 1000).toFixed(1) + "k"
+                : totalVolume
+              : "—"}</span
+          >
+          <span class="stat-box-lbl" style="color: var(--accent); opacity: 0.7;"
+            >Vol (kg)</span
+          >
         </div>
       </div>
     {/if}
@@ -252,7 +297,10 @@
     <div class="rest-card card">
       <div class="rest-icon">😴</div>
       <h2 class="rest-title">Rest Day</h2>
-      <p class="rest-desc">Recovery is where the gains are made.<br/>Eat well, sleep well, come back stronger.</p>
+      <p class="rest-desc">
+        Recovery is where the gains are made.<br />Eat well, sleep well, come
+        back stronger.
+      </p>
       <div class="rest-tips">
         <div class="rest-tip">🥩 High protein meal</div>
         <div class="rest-tip">💧 Stay hydrated</div>
@@ -260,22 +308,24 @@
       </div>
     </div>
 
-  <!-- ── No plan ── -->
+    <!-- ── No plan ── -->
   {:else if todayMoves.length === 0}
     <div class="empty-state">
       <div class="empty-icon">📅</div>
       <p class="empty-title">No workout planned</p>
-      <p class="empty-desc">Set up today's exercises in the Workout Plan tab.</p>
+      <p class="empty-desc">
+        Set up today's exercises in the Workout Plan tab.
+      </p>
     </div>
 
-  <!-- ── Workout list ── -->
+    <!-- ── Workout list ── -->
   {:else}
     <p class="section-label" id="movements-label">Exercises</p>
 
     {#each todayMoves as move, i}
-      {@const done   = $todayLog.completedSets[move.id] ?? 0}
-      {@const wArr   = $todayLog.weights[move.id] ?? []}
-      {@const mg     = MUSCLE_META[move.muscleGroup]}
+      {@const done = $todayLog.completedSets[move.id] ?? 0}
+      {@const wArr = $todayLog.weights[move.id] ?? []}
+      {@const mg = MUSCLE_META[move.muscleGroup]}
       {@const allDone = done >= move.sets}
 
       <div
@@ -285,7 +335,10 @@
         style="animation-delay: {i * 40}ms"
       >
         <!-- Top row -->
-        <div class="flex items-center justify-between" style="margin-bottom: 0.75rem;">
+        <div
+          class="flex items-center justify-between"
+          style="margin-bottom: 0.75rem;"
+        >
           <button
             class="move-header-btn"
             onclick={() => openProgress(move)}
@@ -298,12 +351,27 @@
               <span class="move-icon">{mg.icon}</span>
             </span>
             <div>
-              <h3 class="move-name" class:strikethrough={allDone}>{move.name}</h3>
+              <h3 class="move-name" class:strikethrough={allDone}>
+                {move.name}
+              </h3>
               <div class="move-subtitle">
-                <span class="badge badge-mg" style="--mg: {mg.color}">{mg.label}</span>
+                <span class="badge badge-mg" style="--mg: {mg.color}"
+                  >{mg.label}</span
+                >
                 {#if $lastWeights[move.id]}
                   <span class="last-w-badge">
-                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+                    <svg
+                      width="9"
+                      height="9"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      ><path d="M12 20V10" /><path d="M18 20V4" /><path
+                        d="M6 20v-4"
+                      /></svg
+                    >
                     Last: {$lastWeights[move.id]}kg
                   </span>
                 {/if}
@@ -311,27 +379,40 @@
             </div>
           </button>
           <div class="move-meta">
-            <span class="meta-sets">{move.sets}<span class="meta-x">×</span>{move.reps}</span>
-            <span class="meta-unit">{move.unit === 'secs' ? 'secs' : 'reps'}</span>
+            <span class="meta-sets"
+              >{move.sets}<span class="meta-x">×</span>{move.reps}</span
+            >
+            <span class="meta-unit"
+              >{move.unit === "secs" ? "secs" : "reps"}</span
+            >
           </div>
         </div>
 
         <!-- Set dots -->
         <div class="set-dots" role="group" aria-label="Sets for {move.name}">
           {#each Array(move.sets) as _, s}
-            {@const setDone   = done >= s + 1}
+            {@const setDone = done >= s + 1}
             {@const setWeight = wArr[s]}
-            {@const setReps   = ($todayLog.sessionReps ?? {})[move.id]?.[s]}
+            {@const setReps = ($todayLog.sessionReps ?? {})[move.id]?.[s]}
             <button
               class="set-dot-wrap"
               class:set-done={setDone}
-              onclick={() => setDone ? undoSet(move.id, s + 1) : openWeightSheet(move, s + 1)}
-              aria-label="Set {s + 1}{setDone ? ' — tap to undo' : ' — tap to log'}"
+              onclick={() =>
+                setDone
+                  ? undoSet(move.id, s + 1)
+                  : openWeightSheet(move, s + 1)}
+              aria-label="Set {s + 1}{setDone
+                ? ' — tap to undo'
+                : ' — tap to log'}"
               id={`set-btn-${move.id}-${s + 1}`}
             >
               <span class="set-num">{s + 1}</span>
               {#if setDone && setWeight}
-                <span class="weight-chip">{setReps && setReps !== move.reps ? `${setReps}×` : ''}{setWeight}kg</span>
+                <span class="weight-chip"
+                  >{setReps && setReps !== move.reps
+                    ? `${setReps}×`
+                    : ""}{setWeight}kg</span
+                >
               {:else if setDone && setReps && setReps !== move.reps}
                 <span class="weight-chip">{setReps} reps</span>
               {:else if setDone}
@@ -353,7 +434,11 @@
         <span class="complete-icon">🏆</span>
         <div>
           <p class="complete-title">Workout Complete!</p>
-          <p class="complete-sub">Crushed it — {totalVolume > 0 ? `${totalVolume}kg total volume` : 'great work!'}. 💪</p>
+          <p class="complete-sub">
+            Crushed it — {totalVolume > 0
+              ? `${totalVolume}kg total volume`
+              : "great work!"}. 💪
+          </p>
         </div>
       </div>
     {/if}
@@ -366,10 +451,17 @@
   <div
     class="modal-overlay"
     tabindex="-1"
-    onclick={(e) => { if (e.target === e.currentTarget) closeSheet(); }}
+    onclick={(e) => {
+      if (e.target === e.currentTarget) closeSheet();
+    }}
     id="weight-sheet-overlay"
   >
-    <div class="modal-sheet weight-sheet" aria-modal="true" aria-label="Log set weight" tabindex="-1">
+    <div
+      class="modal-sheet weight-sheet"
+      aria-modal="true"
+      aria-label="Log set weight"
+      tabindex="-1"
+    >
       <div class="modal-handle"></div>
 
       <!-- Header -->
@@ -377,16 +469,32 @@
         <div>
           <p class="ws-title">{sheetMove.name}</p>
           <p class="ws-sub">
-            <span class="badge badge-mg" style="--mg: {MUSCLE_META[sheetMove.muscleGroup].color}">
+            <span
+              class="badge badge-mg"
+              style="--mg: {MUSCLE_META[sheetMove.muscleGroup].color}"
+            >
               {MUSCLE_META[sheetMove.muscleGroup].label}
             </span>
-            &nbsp;· Set {sheetSetNum} of {sheetMove.sets} · {sheetMove.reps} {sheetMove.unit}
+            &nbsp;· Set {sheetSetNum} of {sheetMove.sets} · {sheetMove.reps}
+            {sheetMove.unit}
           </p>
         </div>
-        <button class="btn-icon ws-close" onclick={closeSheet} aria-label="Close">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6"  y1="6" x2="18" y2="18"/>
+        <button
+          class="btn-icon ws-close"
+          onclick={closeSheet}
+          aria-label="Close"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+          >
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         </button>
       </div>
@@ -400,14 +508,23 @@
             <p class="label ws-col-label">Weight</p>
             <div class="ws-stepper-wrap">
               <div class="weight-stepper">
-                <button onclick={() => adjustWeight(-2.5)} aria-label="Decrease weight">−</button>
+                <button
+                  onclick={() => adjustWeight(-2.5)}
+                  aria-label="Decrease weight">−</button
+                >
                 <input
-                  type="number" min="0" max="999" step="2.5"
+                  type="number"
+                  min="0"
+                  max="999"
+                  step="2.5"
                   bind:value={sheetWeight}
                   id="weight-input"
                   aria-label="Weight in kg"
                 />
-                <button onclick={() => adjustWeight(2.5)} aria-label="Increase weight">+</button>
+                <button
+                  onclick={() => adjustWeight(2.5)}
+                  aria-label="Increase weight">+</button
+                >
               </div>
               <span class="weight-unit-label">kg</span>
             </div>
@@ -418,14 +535,22 @@
             <p class="label ws-col-label">Reps</p>
             <div class="ws-stepper-wrap">
               <div class="weight-stepper reps-stepper">
-                <button onclick={() => adjustReps(-1)} aria-label="Decrease reps">−</button>
+                <button
+                  onclick={() => adjustReps(-1)}
+                  aria-label="Decrease reps">−</button
+                >
                 <input
-                  type="number" min="1" max="999" step="1"
+                  type="number"
+                  min="1"
+                  max="999"
+                  step="1"
                   bind:value={sheetReps}
                   id="reps-input"
                   aria-label="Reps"
                 />
-                <button onclick={() => adjustReps(1)} aria-label="Increase reps">+</button>
+                <button onclick={() => adjustReps(1)} aria-label="Increase reps"
+                  >+</button
+                >
               </div>
               <span class="weight-unit-label">reps</span>
             </div>
@@ -438,8 +563,8 @@
             <button
               class="preset-chip"
               class:active={sheetWeight === preset}
-              onclick={() => sheetWeight = preset}
-            >{preset}</button>
+              onclick={() => (sheetWeight = preset)}>{preset}</button
+            >
           {/each}
         </div>
 
@@ -451,9 +576,22 @@
         <button class="btn btn-secondary" onclick={closeSheet} id="ws-skip-btn">
           Skip weight
         </button>
-        <button class="btn btn-primary ws-confirm-btn" onclick={confirmSet} id="ws-confirm-btn">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="20 6 9 17 4 12"/>
+        <button
+          class="btn btn-primary ws-confirm-btn"
+          onclick={confirmSet}
+          id="ws-confirm-btn"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <polyline points="20 6 9 17 4 12" />
           </svg>
           Log Set {sheetSetNum}
         </button>
@@ -464,18 +602,25 @@
 
 <!-- ── Progress sheet ── -->
 {#if progressMove}
-  {@const pWeek    = getWeekProgress(progressMove.id)}
+  {@const pWeek = getWeekProgress(progressMove.id)}
   {@const pHistory = getPastSessions(progressMove.id)}
-  {@const pmg      = MUSCLE_META[progressMove.muscleGroup]}
-  {@const weekMax  = Math.max(...pWeek.map(d => d.maxWeight), 1)}
+  {@const pmg = MUSCLE_META[progressMove.muscleGroup]}
+  {@const weekMax = Math.max(...pWeek.map((d) => d.maxWeight), 1)}
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_interactive_supports_focus -->
   <div
     class="modal-overlay"
     tabindex="-1"
-    onclick={(e) => { if (e.target === e.currentTarget) closeProgress(); }}
+    onclick={(e) => {
+      if (e.target === e.currentTarget) closeProgress();
+    }}
     id="progress-sheet-overlay"
   >
-    <div class="modal-sheet progress-sheet" aria-modal="true" aria-label="Weight progress" tabindex="-1">
+    <div
+      class="modal-sheet progress-sheet"
+      aria-modal="true"
+      aria-label="Weight progress"
+      tabindex="-1"
+    >
       <div class="modal-handle"></div>
 
       <!-- Header -->
@@ -483,15 +628,32 @@
         <div>
           <p class="ps-title">{progressMove.name}</p>
           <div class="ps-sub">
-            <span class="badge badge-mg" style="--mg: {pmg.color}">{pmg.label}</span>
+            <span class="badge badge-mg" style="--mg: {pmg.color}"
+              >{pmg.label}</span
+            >
             {#if $lastWeights[progressMove.id]}
-              <span class="ps-best">Best: {$lastWeights[progressMove.id]}kg</span>
+              <span class="ps-best"
+                >Best: {$lastWeights[progressMove.id]}kg</span
+              >
             {/if}
           </div>
         </div>
         <button class="btn-icon" onclick={closeProgress} aria-label="Close">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+          >
+            <line x1="18" y1="6" x2="6" y2="18" /><line
+              x1="6"
+              y1="6"
+              x2="18"
+              y2="18"
+            />
           </svg>
         </button>
       </div>
@@ -501,80 +663,137 @@
         <p class="ps-week-label" style="margin: 0">This Week</p>
         <div class="chart-mode-tabs">
           <button
-            class="chart-tab" class:active={chartMode === 'weight'}
-            onclick={() => chartMode = 'weight'} id="chart-tab-weight"
-          >Weight</button>
+            class="chart-tab"
+            class:active={chartMode === "weight"}
+            onclick={() => (chartMode = "weight")}
+            id="chart-tab-weight">Weight</button
+          >
           <button
-            class="chart-tab" class:active={chartMode === 'reps'}
-            onclick={() => chartMode = 'reps'} id="chart-tab-reps"
-          >Reps</button>
+            class="chart-tab"
+            class:active={chartMode === "reps"}
+            onclick={() => (chartMode = "reps")}
+            id="chart-tab-reps">Reps</button
+          >
         </div>
       </div>
 
       <!-- 7-bar weekly chart -->
       <div class="ps-chart-wrap">
         {#if true}
-          {@const weekRepsMax = Math.max(...pWeek.map(d => d.totalReps), 1)}
+          {@const weekRepsMax = Math.max(...pWeek.map((d) => d.totalReps), 1)}
           <svg
             class="ps-chart"
-          viewBox="0 0 238 110"
-          preserveAspectRatio="xMidYMid meet"
-          aria-label="Weekly {chartMode} progress"
-        >
-          {#each pWeek as day, i}
-            {@const BAR_W   = 28}
-            {@const CHART_H = 80}
-            {@const x       = i * (BAR_W + 6)}
-            {@const isWeight = chartMode === 'weight'}
-            {@const hasBar  = isWeight ? day.hasData : day.totalReps > 0}
-            {@const barVal  = isWeight ? day.maxWeight : day.totalReps}
-            {@const barMax  = isWeight ? weekMax       : weekRepsMax}
-            {@const barH    = hasBar ? Math.max(6, Math.round((barVal / barMax) * CHART_H)) : 0}
-            {@const barColor = day.isToday ? 'var(--accent)' : isWeight ? 'var(--surface-3)' : 'var(--green)'}
+            viewBox="0 0 238 110"
+            preserveAspectRatio="xMidYMid meet"
+            aria-label="Weekly {chartMode} progress"
+          >
+            {#each pWeek as day, i}
+              {@const BAR_W = 28}
+              {@const CHART_H = 80}
+              {@const x = i * (BAR_W + 6)}
+              {@const isWeight = chartMode === "weight"}
+              {@const hasBar = isWeight ? day.hasData : day.totalReps > 0}
+              {@const barVal = isWeight ? day.maxWeight : day.totalReps}
+              {@const barMax = isWeight ? weekMax : weekRepsMax}
+              {@const barH = hasBar
+                ? Math.max(6, Math.round((barVal / barMax) * CHART_H))
+                : 0}
+              {@const barColor = day.isToday
+                ? "var(--accent)"
+                : isWeight
+                  ? "var(--surface-3)"
+                  : "var(--green)"}
 
-            <!-- Today column background -->
-            {#if day.isToday}
-              <rect x={x-2} y="0" width={BAR_W+4} height={CHART_H+26} rx="6" fill="rgba(167,139,250,0.07)"/>
-            {/if}
-
-            <!-- Empty track -->
-            <rect x={x} y={CHART_H - 4} width={BAR_W} height={4} rx="2" fill="var(--surface-3)" opacity="0.4"/>
-
-            <!-- Data bar -->
-            {#if hasBar}
-              <rect x={x} y={CHART_H - barH} width={BAR_W} height={barH}
-                rx="4" fill={barColor} opacity={day.isToday ? 1 : 0.82}/>
-              <!-- Value label -->
-              {#if barH >= 16}
-                <text x={x + BAR_W/2} y={CHART_H - barH + 11}
-                  text-anchor="middle" font-size="8" font-weight="700"
-                  fill={day.isToday ? '#09090b' : 'var(--text-sub)'}>{barVal}</text>
-              {:else}
-                <text x={x + BAR_W/2} y={CHART_H - barH - 3}
-                  text-anchor="middle" font-size="8" font-weight="700"
-                  fill={day.isToday ? 'var(--accent)' : 'var(--text-sub)'}>{barVal}</text>
+              <!-- Today column background -->
+              {#if day.isToday}
+                <rect
+                  x={x - 2}
+                  y="0"
+                  width={BAR_W + 4}
+                  height={CHART_H + 26}
+                  rx="6"
+                  fill="rgba(167,139,250,0.07)"
+                />
               {/if}
-            {/if}
 
-            <!-- Day label -->
-            <text x={x + BAR_W/2} y={CHART_H + 14}
-              text-anchor="middle" font-size="8.5" font-weight={day.isToday ? '700' : '500'}
-              fill={day.isToday ? 'var(--accent)' : 'var(--text-muted)'}>{day.dayLabel}</text>
+              <!-- Empty track -->
+              <rect
+                {x}
+                y={CHART_H - 4}
+                width={BAR_W}
+                height={4}
+                rx="2"
+                fill="var(--surface-3)"
+                opacity="0.4"
+              />
 
-            <!-- Today dot -->
-            {#if day.isToday}
-              <circle cx={x + BAR_W/2} cy={CHART_H + 24} r="2.5" fill="var(--accent)"/>
-            {/if}
-          {/each}
-        </svg>
+              <!-- Data bar -->
+              {#if hasBar}
+                <rect
+                  {x}
+                  y={CHART_H - barH}
+                  width={BAR_W}
+                  height={barH}
+                  rx="4"
+                  fill={barColor}
+                  opacity={day.isToday ? 1 : 0.82}
+                />
+                <!-- Value label -->
+                {#if barH >= 16}
+                  <text
+                    x={x + BAR_W / 2}
+                    y={CHART_H - barH + 11}
+                    text-anchor="middle"
+                    font-size="8"
+                    font-weight="700"
+                    fill={day.isToday ? "#09090b" : "var(--text-sub)"}
+                    >{barVal}</text
+                  >
+                {:else}
+                  <text
+                    x={x + BAR_W / 2}
+                    y={CHART_H - barH - 3}
+                    text-anchor="middle"
+                    font-size="8"
+                    font-weight="700"
+                    fill={day.isToday ? "var(--accent)" : "var(--text-sub)"}
+                    >{barVal}</text
+                  >
+                {/if}
+              {/if}
+
+              <!-- Day label -->
+              <text
+                x={x + BAR_W / 2}
+                y={CHART_H + 14}
+                text-anchor="middle"
+                font-size="8.5"
+                font-weight={day.isToday ? "700" : "500"}
+                fill={day.isToday ? "var(--accent)" : "var(--text-muted)"}
+                >{day.dayLabel}</text
+              >
+
+              <!-- Today dot -->
+              {#if day.isToday}
+                <circle
+                  cx={x + BAR_W / 2}
+                  cy={CHART_H + 24}
+                  r="2.5"
+                  fill="var(--accent)"
+                />
+              {/if}
+            {/each}
+          </svg>
         {/if}
       </div>
 
       <!-- This-week summary chips -->
-      {#if pWeek.filter(d => d.hasData).length > 0}
+      {#if pWeek.filter((d) => d.hasData).length > 0}
         <div class="ps-week-stats">
           <div class="ps-week-stat">
-            <span class="ps-week-stat-val">{pWeek.filter(d => d.hasData).length}</span>
+            <span class="ps-week-stat-val"
+              >{pWeek.filter((d) => d.hasData).length}</span
+            >
             <span class="ps-week-stat-lbl">days logged</span>
           </div>
           <div class="ps-week-stat">
@@ -582,7 +801,11 @@
             <span class="ps-week-stat-lbl">week best</span>
           </div>
           <div class="ps-week-stat">
-            <span class="ps-week-stat-val">{pWeek.filter(d => d.hasData).reduce((s,d) => s + d.sets, 0)}</span>
+            <span class="ps-week-stat-val"
+              >{pWeek
+                .filter((d) => d.hasData)
+                .reduce((s, d) => s + d.sets, 0)}</span
+            >
             <span class="ps-week-stat-lbl">total sets</span>
           </div>
         </div>
@@ -601,7 +824,9 @@
                   {@const r = s.reps[si]}
                   {#if (w && w > 0) || (r && r > 0)}
                     <span class="ps-w-chip">
-                      <span style="color: var(--text-muted); font-weight:500">S{si+1}</span>
+                      <span style="color: var(--text-muted); font-weight:500"
+                        >S{si + 1}</span
+                      >
                       {#if r && r > 0}{r}×{/if}{#if w && w > 0}{w}kg{/if}
                     </span>
                   {/if}
@@ -614,8 +839,12 @@
       {:else}
         <div class="ps-empty">
           <span style="font-size: 2rem;">📊</span>
-          <p style="font-weight: 600; color: var(--text-sub);">No weight history yet</p>
-          <p style="font-size: 0.82rem; color: var(--text-muted);">Log weights on the Today tab to build your graph.</p>
+          <p style="font-weight: 600; color: var(--text-sub);">
+            No weight history yet
+          </p>
+          <p style="font-size: 0.82rem; color: var(--text-muted);">
+            Log weights on the Today tab to build your graph.
+          </p>
         </div>
       {/if}
     </div>
@@ -652,8 +881,14 @@
     padding: 0.3rem 0.75rem;
   }
 
-  .streak-fire { font-size: 1rem; }
-  .streak-num  { font-size: 0.78rem; font-weight: 700; color: var(--orange); }
+  .streak-fire {
+    font-size: 1rem;
+  }
+  .streak-num {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--orange);
+  }
 
   /* ── Greeting card ── */
   .greeting-card {
@@ -680,9 +915,13 @@
     color: var(--text-sub);
   }
 
-  .greeting-sub strong { color: var(--text); }
+  .greeting-sub strong {
+    color: var(--text);
+  }
 
-  .progress-section { margin-top: 0.75rem; }
+  .progress-section {
+    margin-top: 0.75rem;
+  }
 
   .progress-pct {
     font-size: 0.8rem;
@@ -691,7 +930,9 @@
     transition: color 0.3s;
   }
 
-  .progress-pct.done { color: var(--green); }
+  .progress-pct.done {
+    color: var(--green);
+  }
 
   /* ── Rest day card ── */
   .rest-card {
@@ -704,9 +945,19 @@
     margin-top: 0.75rem;
   }
 
-  .rest-icon  { font-size: 3rem; line-height: 1; }
-  .rest-title { font-size: 1.25rem; margin-top: 0.25rem; }
-  .rest-desc  { font-size: 0.875rem; color: var(--text-sub); line-height: 1.6; }
+  .rest-icon {
+    font-size: 3rem;
+    line-height: 1;
+  }
+  .rest-title {
+    font-size: 1.25rem;
+    margin-top: 0.25rem;
+  }
+  .rest-desc {
+    font-size: 0.875rem;
+    color: var(--text-sub);
+    line-height: 1.6;
+  }
 
   .rest-tips {
     display: flex;
@@ -729,12 +980,19 @@
   /* ── Movement card ── */
   .move-card {
     animation: page-in 0.35s var(--ease) both;
-    transition: border-color 0.25s, background 0.25s, box-shadow 0.25s;
+    transition:
+      border-color 0.25s,
+      background 0.25s,
+      box-shadow 0.25s;
   }
 
   .move-card.move-complete {
     border-color: rgba(74, 222, 128, 0.25);
-    background: linear-gradient(135deg, rgba(74, 222, 128, 0.05) 0%, var(--surface) 60%);
+    background: linear-gradient(
+      135deg,
+      rgba(74, 222, 128, 0.05) 0%,
+      var(--surface) 60%
+    );
   }
 
   .move-icon-wrap {
@@ -748,11 +1006,15 @@
     flex-shrink: 0;
   }
 
-  .move-icon { font-size: 1.2rem; line-height: 1; }
+  .move-icon {
+    font-size: 1.2rem;
+    line-height: 1;
+  }
 
   .move-name {
     font-size: 1rem;
     font-weight: 700;
+    color: #fff;
     letter-spacing: -0.02em;
     transition: color 0.2s;
     line-height: 1.2;
@@ -865,16 +1127,31 @@
     align-items: center;
     gap: 1rem;
     padding: 1.25rem;
-    background: linear-gradient(135deg, rgba(74, 222, 128, 0.1), rgba(167, 139, 250, 0.1));
+    background: linear-gradient(
+      135deg,
+      rgba(74, 222, 128, 0.1),
+      rgba(167, 139, 250, 0.1)
+    );
     border: 1px solid rgba(74, 222, 128, 0.25);
     border-radius: var(--radius-lg);
     margin-top: 0.75rem;
     animation: bounce-in 0.5s var(--ease);
   }
 
-  .complete-icon  { font-size: 2.5rem; line-height: 1; }
-  .complete-title { font-size: 1.1rem; font-weight: 800; letter-spacing: -0.02em; }
-  .complete-sub   { font-size: 0.84rem; color: var(--text-sub); margin-top: 2px; }
+  .complete-icon {
+    font-size: 2.5rem;
+    line-height: 1;
+  }
+  .complete-title {
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  .complete-sub {
+    font-size: 0.84rem;
+    color: var(--text-sub);
+    margin-top: 2px;
+  }
 
   /* ── Weight sheet ── */
   .weight-sheet {

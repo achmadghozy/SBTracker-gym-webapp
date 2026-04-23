@@ -1,25 +1,25 @@
 <script lang="ts">
-  import './app.css';
-  import BottomNav    from './lib/components/BottomNav.svelte';
-  import Overview     from './lib/pages/Overview.svelte';
-  import WorkoutPlan  from './lib/pages/WorkoutPlan.svelte';
-  import Movements    from './lib/pages/Movements.svelte';
+  import "./app.css";
+  import BottomNav from "./lib/components/BottomNav.svelte";
+  import Overview from "./lib/pages/Overview.svelte";
+  import WorkoutPlan from "./lib/pages/WorkoutPlan.svelte";
+  import Movements from "./lib/pages/Movements.svelte";
 
-  type Page = 'overview' | 'workout-plan' | 'movements';
-  let currentPage = $state<Page>('overview');
+  type Page = "overview" | "workout-plan" | "movements";
+  let currentPage = $state<Page>("overview");
 
   function navigate(page: Page) {
     currentPage = page;
     // Smooth scroll to top when changing pages
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 </script>
 
 <div id="app-shell">
   {#key currentPage}
-    {#if currentPage === 'overview'}
+    {#if currentPage === "overview"}
       <Overview />
-    {:else if currentPage === 'workout-plan'}
+    {:else if currentPage === "workout-plan"}
       <WorkoutPlan />
     {:else}
       <Movements />
@@ -34,7 +34,7 @@
     min-height: 100svh;
     display: flex;
     flex-direction: column;
-    max-width: 430px;
+    max-width: 100%;
     margin: 0 auto;
     position: relative;
   }
@@ -46,7 +46,7 @@
     }
 
     #app-shell {
-      border-left:  1px solid rgba(255, 255, 255, 0.05);
+      border-left: 1px solid rgba(255, 255, 255, 0.05);
       border-right: 1px solid rgba(255, 255, 255, 0.05);
       box-shadow: 0 0 60px rgba(0, 0, 0, 0.6);
     }
