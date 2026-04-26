@@ -1,16 +1,9 @@
 <script lang="ts">
   import {
-    movements,
-    workoutPlan,
-    todayLog,
-    dailyLogs,
-    tapSet,
-    logWeight,
-    logReps,
-    lastWeights,
-    lastReps,
-    todayDayIndex,
-  } from "../stores/workout";
+    movements, workoutPlan, todayLog, dailyLogs,
+    tapSet, addSet, removeLastSet,
+    logWeight, logReps, lastWeights, lastReps, todayDayIndex, currentPlanWeek,
+  } from '../stores/workout';
   import { MUSCLE_META, DAY_FULL, type Movement } from "../types";
 
   // ── Computed today data ──────────────────────────────────────
@@ -27,32 +20,33 @@
   });
 
   // Reactive references from stores
-  let plan = $derived($workoutPlan.days[dayIdx]);
+  let plan       = $derived($workoutPlan.days[dayIdx]);
   let todayMoves = $derived(
     (plan?.movementIds ?? [])
-      .map((id) => $movements.find((m) => m.id === id))
-      .filter((m): m is Movement => m !== undefined),
+      .map(id => $movements.find(m => m.id === id))
+      .filter((m): m is Movement => m !== undefined)
   );
 
-  let totalSets = $derived(todayMoves.reduce((s, m) => s + m.sets, 0));
+  // Session-based progress: count all sets logged today across today's movements
   let completedSets = $derived(
-    todayMoves.reduce((s, m) => s + ($todayLog.completedSets[m.id] ?? 0), 0),
+    todayMoves.reduce((s, m) => s + ($todayLog.completedSets[m.id] ?? 0), 0)
   );
-  let progress = $derived(
-    totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0,
-  );
-  let isComplete = $derived(totalSets > 0 && completedSets >= totalSets);
+  // We no longer have a fixed target — show sets logged / planned count (0 if no plan)
+  let totalSets = $derived(completedSets); // shows all sets done; no max
+  let progress  = $derived(completedSets > 0 ? Math.min(100, completedSets * 5) : 0); // 5% per set, capped
+  let isComplete = $derived(false); // removed — "complete" is user-defined
 
-  // Total volume logged today (sum of weight × reps for each completed set)
+  // Total volume: weight × actual reps per set
   let totalVolume = $derived(
     todayMoves.reduce((vol, m) => {
-      const done = $todayLog.completedSets[m.id] ?? 0;
+      const done    = $todayLog.completedSets[m.id] ?? 0;
       const weights = $todayLog.weights[m.id] ?? [];
+      const reps    = ($todayLog.sessionReps ?? {})[m.id] ?? [];
       for (let i = 0; i < done; i++) {
-        vol += (weights[i] ?? 0) * m.reps;
+        vol += (weights[i] ?? 0) * (reps[i] ?? 8);
       }
       return vol;
-    }, 0),
+    }, 0)
   );
 
   // ── Weight + Reps logging sheet ─────────────────────────────
@@ -62,22 +56,14 @@
   let sheetReps = $state(0); // actual reps for this set
 
   function openWeightSheet(move: Movement, setNum: number) {
-    sheetMove = move;
+    sheetMove   = move;
     sheetSetNum = setNum;
     // Weight pre-fill: today set → today prev set → last session → 0
     const todayWArr = $todayLog.weights[move.id] ?? [];
-    sheetWeight =
-      todayWArr[setNum - 1] ??
-      todayWArr[setNum - 2] ??
-      $lastWeights[move.id] ??
-      0;
-    // Reps pre-fill: today's logged reps → last session's reps → movement default
+    sheetWeight = todayWArr[setNum-1] ?? todayWArr[setNum-2] ?? $lastWeights[move.id] ?? 0;
+    // Reps pre-fill: today's logged reps → last session's reps → 8
     const todayRArr = ($todayLog.sessionReps ?? {})[move.id] ?? [];
-    sheetReps =
-      todayRArr[setNum - 1] ??
-      todayRArr[setNum - 2] ??
-      $lastReps[move.id] ??
-      move.reps;
+    sheetReps = todayRArr[setNum-1] ?? todayRArr[setNum-2] ?? $lastReps[move.id] ?? 8;
   }
 
   function closeSheet() {
@@ -86,23 +72,17 @@
 
   function confirmSet() {
     if (!sheetMove) return;
-    if (sheetWeight > 0) logWeight(sheetMove.id, sheetSetNum, sheetWeight);
-    // Always log reps (even if default, for history tracking)
-    logReps(sheetMove.id, sheetSetNum, sheetReps);
+    // For a new set beyond what's logged, add it first
     const currentDone = $todayLog.completedSets[sheetMove.id] ?? 0;
-    if (currentDone < sheetSetNum) tapSet(sheetMove.id, sheetSetNum);
+    if (sheetSetNum > currentDone) addSet(sheetMove.id);
+    if (sheetWeight > 0) logWeight(sheetMove.id, sheetSetNum, sheetWeight);
+    logReps(sheetMove.id, sheetSetNum, sheetReps);
     closeSheet();
   }
 
-  function undoSet(movId: string, setNum: number) {
-    tapSet(movId, setNum);
-  }
-  function adjustWeight(delta: number) {
-    sheetWeight = Math.max(0, sheetWeight + delta);
-  }
-  function adjustReps(delta: number) {
-    sheetReps = Math.max(1, sheetReps + delta);
-  }
+  function removeSet(movId: string) { removeLastSet(movId); }
+  function adjustWeight(delta: number) { sheetWeight = Math.max(0, sheetWeight + delta); }
+  function adjustReps(delta: number)   { sheetReps   = Math.max(1, sheetReps   + delta); }
 
   // ── Progress sheet ───────────────────────────────────────────
   let progressMove = $state<Movement | null>(null);
@@ -323,126 +303,95 @@
     <p class="section-label" id="movements-label">Exercises</p>
 
     {#each todayMoves as move, i}
-      {@const done = $todayLog.completedSets[move.id] ?? 0}
-      {@const wArr = $todayLog.weights[move.id] ?? []}
-      {@const mg = MUSCLE_META[move.muscleGroup]}
-      {@const allDone = done >= move.sets}
+      {@const done  = $todayLog.completedSets[move.id] ?? 0}
+      {@const wArr  = $todayLog.weights[move.id] ?? []}
+      {@const rArr  = ($todayLog.sessionReps ?? {})[move.id] ?? []}
+      {@const mg    = MUSCLE_META[move.muscleGroup]}
 
-      <div
-        class="move-card card"
-        class:move-complete={allDone}
-        id={`move-card-${move.id}`}
-        style="animation-delay: {i * 40}ms"
-      >
-        <!-- Top row -->
-        <div
-          class="flex items-center justify-between"
-          style="margin-bottom: 0.75rem;"
-        >
-          <button
-            class="move-header-btn"
-            onclick={() => openProgress(move)}
-            aria-label="View progress for {move.name}"
-          >
-            <span
-              class="move-icon-wrap"
-              style="background: color-mix(in srgb, {mg.color} 14%, transparent); border-color: color-mix(in srgb, {mg.color} 30%, transparent);"
-            >
+      <div class="move-card card" id={`move-card-${move.id}`} style="animation-delay: {i*40}ms">
+
+        <!-- Top row: name + progress button -->
+        <div class="flex items-center justify-between" style="margin-bottom: 0.75rem;">
+          <button class="move-header-btn" onclick={() => openProgress(move)} aria-label="View progress for {move.name}">
+            <span class="move-icon-wrap" style="background: color-mix(in srgb, {mg.color} 14%, transparent); border-color: color-mix(in srgb, {mg.color} 30%, transparent);">
               <span class="move-icon">{mg.icon}</span>
             </span>
             <div>
-              <h3 class="move-name" class:strikethrough={allDone}>
-                {move.name}
-              </h3>
+              <h3 class="move-name">{move.name}</h3>
               <div class="move-subtitle">
-                <span class="badge badge-mg" style="--mg: {mg.color}"
-                  >{mg.label}</span
-                >
+                <span class="badge badge-mg" style="--mg: {mg.color}">{mg.label}</span>
                 {#if $lastWeights[move.id]}
                   <span class="last-w-badge">
-                    <svg
-                      width="9"
-                      height="9"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2.5"
-                      stroke-linecap="round"
-                      ><path d="M12 20V10" /><path d="M18 20V4" /><path
-                        d="M6 20v-4"
-                      /></svg
-                    >
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
                     Last: {$lastWeights[move.id]}kg
                   </span>
                 {/if}
               </div>
             </div>
           </button>
-          <div class="move-meta">
-            <span class="meta-sets"
-              >{move.sets}<span class="meta-x">×</span>{move.reps}</span
-            >
-            <span class="meta-unit"
-              >{move.unit === "secs" ? "secs" : "reps"}</span
-            >
-          </div>
-        </div>
-
-        <!-- Set dots -->
-        <div class="set-dots" role="group" aria-label="Sets for {move.name}">
-          {#each Array(move.sets) as _, s}
-            {@const setDone = done >= s + 1}
-            {@const setWeight = wArr[s]}
-            {@const setReps = ($todayLog.sessionReps ?? {})[move.id]?.[s]}
-            <button
-              class="set-dot-wrap"
-              class:set-done={setDone}
-              onclick={() =>
-                setDone
-                  ? undoSet(move.id, s + 1)
-                  : openWeightSheet(move, s + 1)}
-              aria-label="Set {s + 1}{setDone
-                ? ' — tap to undo'
-                : ' — tap to log'}"
-              id={`set-btn-${move.id}-${s + 1}`}
-            >
-              <span class="set-num">{s + 1}</span>
-              {#if setDone && setWeight}
-                <span class="weight-chip"
-                  >{setReps && setReps !== move.reps
-                    ? `${setReps}×`
-                    : ""}{setWeight}kg</span
-                >
-              {:else if setDone && setReps && setReps !== move.reps}
-                <span class="weight-chip">{setReps} reps</span>
-              {:else if setDone}
-                <span class="weight-chip">✓</span>
-              {/if}
-            </button>
-          {/each}
-
-          {#if allDone}
-            <span class="all-done-badge">✓ All sets done</span>
+          <!-- Sets count badge -->
+          {#if done > 0}
+            <span class="meta-sets-badge">{done} set{done !== 1 ? 's' : ''}</span>
           {/if}
         </div>
+
+        <!-- Logged set rows -->
+        {#if done > 0}
+          <div class="set-rows" role="list" aria-label="Logged sets for {move.name}">
+            {#each Array(done) as _, s}
+              {@const w = wArr[s]}
+              {@const r = rArr[s]}
+              <button
+                class="set-row"
+                onclick={() => openWeightSheet(move, s + 1)}
+                aria-label="Edit set {s + 1}"
+                id={`set-row-${move.id}-${s+1}`}
+              >
+                <span class="set-row-num">S{s+1}</span>
+                <span class="set-row-data">
+                  {#if r && r > 0}<span class="set-row-reps">{r} reps</span>{/if}
+                  {#if w && w > 0}<span class="set-row-weight">{w}kg</span>{/if}
+                  {#if (!r || r === 0) && (!w || w === 0)}<span class="set-row-done">✓ logged</span>{/if}
+                </span>
+                <svg class="set-row-edit" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </button>
+            {/each}
+          </div>
+        {/if}
+
+        <!-- Add Set + Remove last set row -->
+        <div class="set-actions">
+          <button class="btn-add-set" onclick={() => openWeightSheet(move, done + 1)} id={`add-set-${move.id}`}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Add Set {done + 1}
+          </button>
+          {#if done > 0}
+            <button class="btn-remove-set" onclick={() => removeSet(move.id)} aria-label="Remove last set" id={`remove-set-${move.id}`}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+            </button>
+          {/if}
+        </div>
+
       </div>
     {/each}
 
-    <!-- Completion banner -->
-    {#if isComplete}
+    <!-- Volume banner when any sets are logged -->
+    {#if completedSets > 0 && totalVolume > 0}
       <div class="complete-banner" id="completion-banner">
-        <span class="complete-icon">🏆</span>
+        <span class="complete-icon">💪</span>
         <div>
-          <p class="complete-title">Workout Complete!</p>
-          <p class="complete-sub">
-            Crushed it — {totalVolume > 0
-              ? `${totalVolume}kg total volume`
-              : "great work!"}. 💪
-          </p>
+          <p class="complete-title">{completedSets} set{completedSets !== 1 ? 's' : ''} logged!</p>
+          <p class="complete-sub">{totalVolume >= 1000 ? (totalVolume/1000).toFixed(1)+'t' : totalVolume+'kg'} total volume today. Keep it up!</p>
         </div>
       </div>
-    {/if}
-  {/if}
+    {/if}    {/if}
 </main>
 
 <!-- ── Weight logging bottom sheet ── -->
@@ -475,8 +424,7 @@
             >
               {MUSCLE_META[sheetMove.muscleGroup].label}
             </span>
-            &nbsp;· Set {sheetSetNum} of {sheetMove.sets} · {sheetMove.reps}
-            {sheetMove.unit}
+            &nbsp;· Set {sheetSetNum}
           </p>
         </div>
         <button
@@ -980,20 +928,133 @@
   /* ── Movement card ── */
   .move-card {
     animation: page-in 0.35s var(--ease) both;
-    transition:
-      border-color 0.25s,
-      background 0.25s,
-      box-shadow 0.25s;
+    transition: border-color 0.25s, background 0.25s, box-shadow 0.25s;
   }
 
-  .move-card.move-complete {
-    border-color: rgba(74, 222, 128, 0.25);
-    background: linear-gradient(
-      135deg,
-      rgba(74, 222, 128, 0.05) 0%,
-      var(--surface) 60%
-    );
+  /* Sets count badge (replaces meta-sets) */
+  .meta-sets-badge {
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: var(--accent);
+    background: rgba(167,139,250,0.12);
+    border: 1px solid rgba(167,139,250,0.25);
+    border-radius: 999px;
+    padding: 0.15rem 0.55rem;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
+
+  /* Set rows list */
+  .set-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .set-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.65rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) - 2px);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    text-align: left;
+  }
+
+  .set-row:hover { background: var(--surface-3); border-color: var(--accent); }
+  .set-row:active { transform: scale(0.98); }
+
+  .set-row-num {
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    width: 1.8rem;
+    flex-shrink: 0;
+  }
+
+  .set-row-data {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    flex: 1;
+  }
+
+  .set-row-reps {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .set-row-weight {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .set-row-done {
+    font-size: 0.78rem;
+    color: var(--green);
+    font-weight: 600;
+  }
+
+  .set-row-edit {
+    color: var(--text-muted);
+    opacity: 0.4;
+    flex-shrink: 0;
+    transition: opacity 0.15s;
+  }
+
+  .set-row:hover .set-row-edit { opacity: 0.8; }
+
+  /* Add / Remove set buttons row */
+  .set-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-top: 0.2rem;
+  }
+
+  .btn-add-set {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.8rem;
+    background: rgba(167,139,250,0.1);
+    border: 1px dashed rgba(167,139,250,0.35);
+    border-radius: var(--radius);
+    color: var(--accent);
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    flex: 1;
+  }
+
+  .btn-add-set:hover { background: rgba(167,139,250,0.18); border-color: var(--accent); }
+  .btn-add-set:active { transform: scale(0.97); }
+
+  .btn-remove-set {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    background: rgba(239,68,68,0.08);
+    border: 1px solid rgba(239,68,68,0.2);
+    border-radius: var(--radius);
+    color: #ef4444;
+    cursor: pointer;
+    transition: background 0.15s;
+    flex-shrink: 0;
+  }
+
+  .btn-remove-set:hover { background: rgba(239,68,68,0.16); }
 
   .move-icon-wrap {
     width: 40px;

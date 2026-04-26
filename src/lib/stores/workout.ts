@@ -26,10 +26,28 @@ export function todayStr(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-/** JS getDay() returns 0=Sun…6=Sat → convert to 0=Mon…6=Sun */
+/** Returns 0–13 (Mon–Sun across 2 weeks).
+ *  Odd ISO week  → Week 1 (days 0–6)
+ *  Even ISO week → Week 2 (days 7–13)
+ */
 export function todayDayIndex(): number {
-  const js = new Date().getDay(); // 0=Sun
-  return js === 0 ? 6 : js - 1;
+  const today = new Date();
+  const dow = today.getDay(); // 0=Sun
+  const dayInWeek = dow === 0 ? 6 : dow - 1; // 0=Mon…6=Sun
+
+  // ISO week number
+  const tmp = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+  tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+  const isoWeek  = Math.ceil(((tmp.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+
+  const isWeek2 = isoWeek % 2 === 0;
+  return isWeek2 ? dayInWeek + 7 : dayInWeek;
+}
+
+/** Returns 1 or 2 — which plan-week applies today. */
+export function currentPlanWeek(): 1 | 2 {
+  return todayDayIndex() >= 7 ? 2 : 1;
 }
 
 // ============================================================
@@ -37,17 +55,18 @@ export function todayDayIndex(): number {
 // ============================================================
 
 function defaultPlan(): WorkoutPlan {
-  return {
-    days: [
-      { dayIndex: 0, label: 'Push',        isRest: false, movementIds: ['bench-press', 'incline-bench', 'dumbbell-fly', 'ohp', 'lateral-raise', 'tricep-pushdown'] },
-      { dayIndex: 1, label: 'Pull',        isRest: false, movementIds: ['deadlift', 'pull-up', 'lat-pulldown', 'bent-over-row', 'bicep-curl', 'hammer-curl'] },
-      { dayIndex: 2, label: 'Legs',        isRest: false, movementIds: ['squat', 'leg-press', 'rdl', 'leg-curl', 'leg-extension', 'calf-raise'] },
-      { dayIndex: 3, label: 'Rest',        isRest: true,  movementIds: [] },
-      { dayIndex: 4, label: 'Push',        isRest: false, movementIds: ['bench-press', 'incline-bench', 'ohp', 'lateral-raise', 'skull-crusher', 'tricep-pushdown'] },
-      { dayIndex: 5, label: 'Pull + Core', isRest: false, movementIds: ['pull-up', 'lat-pulldown', 'seated-row', 'bicep-curl', 'plank', 'russian-twist'] },
-      { dayIndex: 6, label: 'Rest',        isRest: true,  movementIds: [] },
-    ],
-  };
+  // Week 1 (days 0-6) and Week 2 (days 7-13) — PPL repeated
+  const week1 = [
+    { dayIndex: 0,  label: 'Push',        isRest: false, movementIds: ['bench-press', 'incline-bench', 'dumbbell-fly', 'ohp', 'lateral-raise', 'tricep-pushdown'] },
+    { dayIndex: 1,  label: 'Pull',        isRest: false, movementIds: ['deadlift', 'pull-up', 'lat-pulldown', 'bent-over-row', 'bicep-curl', 'hammer-curl'] },
+    { dayIndex: 2,  label: 'Legs',        isRest: false, movementIds: ['squat', 'leg-press', 'rdl', 'leg-curl', 'leg-extension', 'calf-raise'] },
+    { dayIndex: 3,  label: 'Rest',        isRest: true,  movementIds: [] },
+    { dayIndex: 4,  label: 'Push',        isRest: false, movementIds: ['bench-press', 'incline-bench', 'ohp', 'lateral-raise', 'skull-crusher', 'tricep-pushdown'] },
+    { dayIndex: 5,  label: 'Pull + Core', isRest: false, movementIds: ['pull-up', 'lat-pulldown', 'seated-row', 'bicep-curl', 'plank', 'russian-twist'] },
+    { dayIndex: 6,  label: 'Rest',        isRest: true,  movementIds: [] },
+  ];
+  const week2 = week1.map(d => ({ ...d, dayIndex: d.dayIndex + 7 }));
+  return { days: [...week1, ...week2] };
 }
 
 // ============================================================
@@ -169,10 +188,49 @@ export function removeMovementFromDay(dayIndex: number, movementId: string) {
 //  Actions — Daily Log
 // ============================================================
 
+/** Add one set to a movement (increments completedSets by 1). */
+export function addSet(movementId: string) {
+  const today = todayStr();
+  dailyLogs.update(logs => {
+    const existing = logs.find(l => l.date === today);
+    if (existing) {
+      return logs.map(l =>
+        l.date === today
+          ? { ...l, completedSets: { ...l.completedSets, [movementId]: (l.completedSets[movementId] ?? 0) + 1 } }
+          : l
+      );
+    } else {
+      return [...logs, { date: today, completedSets: { [movementId]: 1 }, weights: {}, sessionReps: {} }];
+    }
+  });
+}
+
+/** Remove the last logged set for a movement (decrements count, clears that set's weight/reps). */
+export function removeLastSet(movementId: string) {
+  const today = todayStr();
+  dailyLogs.update(logs => {
+    const existing = logs.find(l => l.date === today);
+    if (!existing) return logs;
+    const current = existing.completedSets[movementId] ?? 0;
+    if (current <= 0) return logs;
+    const next = current - 1;
+    return logs.map(l => {
+      if (l.date !== today) return l;
+      const newWeights   = [...(l.weights?.[movementId]   ?? [])]; newWeights.splice(next, 1);
+      const newSessReps  = [...(l.sessionReps?.[movementId] ?? [])]; newSessReps.splice(next, 1);
+      return {
+        ...l,
+        completedSets: { ...l.completedSets, [movementId]: next },
+        weights:       { ...l.weights,       [movementId]: newWeights },
+        sessionReps:   { ...(l.sessionReps ?? {}), [movementId]: newSessReps },
+      };
+    });
+  });
+}
+
 /**
- * Tap on set N (1-indexed) to toggle:
- * - If completedSets < N → advance to N
- * - If completedSets === N → decrease to N-1 (undo)
+ * Legacy: tap on set N (1-indexed) to toggle complete/undo.
+ * Kept for backward-compat with any existing call-sites.
  */
 export function tapSet(movementId: string, setNum: number) {
   const today = todayStr();

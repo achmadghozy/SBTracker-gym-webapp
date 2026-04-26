@@ -8,14 +8,11 @@ export interface Movement {
   id: string;
   name: string;
   muscleGroup: MuscleGroup;
-  sets: number;
-  reps: number;
-  unit: 'reps' | 'secs';
   isCustom?: boolean;
 }
 
 export interface PlanDay {
-  dayIndex: number;   // 0 = Monday … 6 = Sunday
+  dayIndex: number;   // 0–6 = Week 1 Mon–Sun, 7–13 = Week 2 Mon–Sun
   label: string;      // "Push", "Pull", "Legs", "Rest"
   isRest: boolean;
   movementIds: string[];

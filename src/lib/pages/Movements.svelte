@@ -37,61 +37,28 @@
 
   // ── Add / Edit modal ─────────────────────────────────────────
   let showForm = $state(false);
-  let editId = $state<string | null>(null);
-
-  // Form fields
-  let fName = $state("");
-  let fGroup = $state<MuscleGroup>("chest");
-  let fSets = $state(3);
-  let fReps = $state(10);
-  let fUnit = $state<"reps" | "secs">("reps");
+  let editId   = $state<string | null>(null);
+  let fName    = $state('');
+  let fGroup   = $state<MuscleGroup>('chest');
 
   function openAdd() {
-    editId = null;
-    fName = "";
-    fGroup = "chest";
-    fSets = 3;
-    fReps = 10;
-    fUnit = "reps";
+    editId = null; fName = ''; fGroup = 'chest';
     showForm = true;
   }
 
   function openEdit(m: Movement) {
-    editId = m.id;
-    fName = m.name;
-    fGroup = m.muscleGroup;
-    fSets = m.sets;
-    fReps = m.reps;
-    fUnit = m.unit;
+    editId = m.id; fName = m.name; fGroup = m.muscleGroup;
     showForm = true;
   }
 
-  function closeForm() {
-    showForm = false;
-    editId = null;
-  }
+  function closeForm() { showForm = false; editId = null; }
 
   function saveForm() {
     if (!fName.trim()) return;
     if (editId) {
-      updateMovement(editId, {
-        name: fName.trim(),
-        muscleGroup: fGroup,
-        sets: fSets,
-        reps: fReps,
-        unit: fUnit,
-      });
+      updateMovement(editId, { name: fName.trim(), muscleGroup: fGroup });
     } else {
-      const id = `custom-${Date.now()}`;
-      addMovement({
-        id,
-        name: fName.trim(),
-        muscleGroup: fGroup,
-        sets: fSets,
-        reps: fReps,
-        unit: fUnit,
-        isCustom: true,
-      });
+      addMovement({ id: `custom-${Date.now()}`, name: fName.trim(), muscleGroup: fGroup, isCustom: true });
     }
     closeForm();
   }
@@ -221,32 +188,13 @@
                       {/if}
                     </div>
                     <div class="mv-stats">
-                      <span class="stat-pill">
-                        <span class="stat-val">{move.sets}</span>
-                        <span class="stat-lbl">sets</span>
-                      </span>
-                      <span class="stat-sep">×</span>
-                      <span class="stat-pill">
-                        <span class="stat-val">{move.reps}</span>
-                        <span class="stat-lbl">{move.unit}</span>
-                      </span>
                       {#if $lastWeights[move.id]}
-                        <span class="stat-sep">·</span>
                         <span class="last-weight-pill">
-                          <svg
-                            width="9"
-                            height="9"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2.5"
-                            stroke-linecap="round"
-                            ><circle cx="12" cy="12" r="3" /><path
-                              d="M3 12h3m12 0h3M12 3v3m0 12v3"
-                            /></svg
-                          >
+                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M3 12h3m12 0h3M12 3v3m0 12v3"/></svg>
                           {$lastWeights[move.id]}kg
                         </span>
+                      {:else}
+                        <span class="stat-lbl" style="font-size:0.7rem">No sessions yet</span>
                       {/if}
                     </div>
                   </div>
@@ -360,39 +308,6 @@
               >
             {/each}
           </select>
-        </div>
-
-        <!-- Sets / Reps / Unit row -->
-        <div class="form-row">
-          <div class="form-group">
-            <label class="label" for="f-sets">Sets</label>
-            <input
-              id="f-sets"
-              class="input"
-              type="number"
-              min="1"
-              max="10"
-              bind:value={fSets}
-            />
-          </div>
-          <div class="form-group">
-            <label class="label" for="f-reps">Reps / Secs</label>
-            <input
-              id="f-reps"
-              class="input"
-              type="number"
-              min="1"
-              max="300"
-              bind:value={fReps}
-            />
-          </div>
-          <div class="form-group">
-            <label class="label" for="f-unit">Unit</label>
-            <select id="f-unit" class="input" bind:value={fUnit}>
-              <option value="reps">Reps</option>
-              <option value="secs">Secs</option>
-            </select>
-          </div>
         </div>
 
         <!-- Buttons -->

@@ -16,14 +16,21 @@
   } from "../types";
 
   // ── State ───────────────────────────────────────────────────
-  let selectedDay = $state(todayDayIndex());
-  let showPicker = $state(false);
+  const todayIdx = todayDayIndex(); // 0–13
+  let selectedWeek = $state<1|2>(todayIdx >= 7 ? 2 : 1);
+  let selectedDay  = $state(todayIdx);
+  let showPicker   = $state(false);
   let editingLabel = $state(false);
-  let labelDraft = $state("");
-  let pickerSearch = $state("");
+  let labelDraft   = $state('');
+  let pickerSearch = $state('');
+
+  // Sliced days for each week (days 0–6 and 7–13)
+  let week1Days = $derived($workoutPlan.days.filter(d => d.dayIndex < 7).sort((a,b) => a.dayIndex - b.dayIndex));
+  let week2Days = $derived($workoutPlan.days.filter(d => d.dayIndex >= 7).sort((a,b) => a.dayIndex - b.dayIndex));
+  let visibleDays = $derived(selectedWeek === 1 ? week1Days : week2Days);
 
   // ── Derived ─────────────────────────────────────────────────
-  let day = $derived($workoutPlan.days[selectedDay]);
+  let day = $derived($workoutPlan.days.find(d => d.dayIndex === selectedDay));
 
   let dayMovements = $derived(
     (day?.movementIds ?? [])
@@ -68,7 +75,7 @@
     return [...groups] as string[];
   }
 
-  const todayIdx = todayDayIndex();
+  const todayIdxConst = todayIdx; // alias for template
 
   // ── Actions ─────────────────────────────────────────────────
   function selectDay(idx: number) {
@@ -79,6 +86,7 @@
   }
 
   function toggleRest() {
+    if (!day) return;
     updateDay(selectedDay, { isRest: !day.isRest });
   }
 
@@ -97,6 +105,7 @@
   }
 
   function startEditLabel() {
+    if (!day) return;
     labelDraft = day.label;
     editingLabel = true;
   }
@@ -116,10 +125,22 @@
     <p class="page-sub">Build your weekly routine</p>
   </div>
 
+  <!-- ── Week tabs ── -->
+  <div class="week-tabs" role="tablist" aria-label="Select week">
+    <button class="week-tab" class:active={selectedWeek === 1} role="tab"
+      onclick={() => { selectedWeek = 1; selectDay(week1Days[0]?.dayIndex ?? 0); }}
+      aria-selected={selectedWeek === 1} id="week1-tab">Week 1</button>
+    <button class="week-tab" class:active={selectedWeek === 2} role="tab"
+      onclick={() => { selectedWeek = 2; selectDay(week2Days[0]?.dayIndex ?? 7); }}
+      aria-selected={selectedWeek === 2} id="week2-tab">Week 2
+      {#if week2Days.length === 0}<span class="week-tab-note">(copy of W1)</span>{/if}
+    </button>
+  </div>
+
   <!-- ── Day selector ── -->
   <div class="day-selector" role="tablist" aria-label="Select day">
-    {#each $workoutPlan.days as d}
-      {@const isToday = d.dayIndex === todayIdx}
+    {#each visibleDays as d}
+      {@const isToday = d.dayIndex === todayIdxConst}
       {@const mgs = getDayMuscleGroups(d.dayIndex)}
       <button
         class="day-pill"
@@ -134,17 +155,11 @@
         {#if isToday}
           <span class="today-dot" title="Today"></span>
         {/if}
-        <span class="day-pill-name">{DAY_SHORT[d.dayIndex]}</span>
+        <span class="day-pill-name">{DAY_SHORT[d.dayIndex % 7]}</span>
         {#if d.isRest}
-          <span class="day-pill-dot" style="background: var(--text-muted)"
-          ></span>
+          <span class="day-pill-dot" style="background: var(--text-muted)"></span>
         {:else if mgs.length > 0}
-          <!-- Colour strip from first muscle group -->
-          <span
-            class="day-pill-dot"
-            style="background: {MUSCLE_META[mgs[0] as keyof typeof MUSCLE_META]
-              ?.color ?? 'var(--surface-3)'}"
-          ></span>
+          <span class="day-pill-dot" style="background: {MUSCLE_META[mgs[0] as keyof typeof MUSCLE_META]?.color ?? 'var(--surface-3)'}"></span>
         {:else}
           <span class="day-pill-dot"></span>
         {/if}
@@ -256,7 +271,7 @@
               id={`plan-move-${move.id}`}
               style="animation-delay: {i * 30}ms"
             >
-              <div class="flex items-center gap-3 justify-between">
+              <div class="flex items-center gap-3 justify-">
                 <span
                   class="move-emoji-wrap"
                   style="background: color-mix(in srgb, {mg.color} 14%, transparent); border-color: color-mix(in srgb, {mg.color} 28%, transparent);"
@@ -265,11 +280,8 @@
                 </span>
                 <div class="flex-1 truncate">
                   <p class="move-name truncate">{move.name}</p>
-                  <span class="badge badge-mg" style="--mg: {mg.color}"
-                    >{mg.label}</span
-                  >
+                  <span class="badge badge-mg" style="--mg: {mg.color}">{mg.label}</span>
                 </div>
-                <div class="move-reps">{move.sets}×{move.reps}</div>
                 <button
                   class="btn-icon remove-btn"
                   onclick={() => removeMove(move.id)}
@@ -420,7 +432,7 @@
           <p class="section-label">{meta.icon} {meta.label}</p>
           <div class="picker-group">
             {#each group.moves as move}
-              {@const alreadyAdded = day.movementIds.includes(move.id)}
+              {@const alreadyAdded = day?.movementIds.includes(move.id) ?? false}
               <button
                 class="picker-item"
                 class:picker-added={alreadyAdded}
@@ -433,7 +445,7 @@
                   {#if alreadyAdded}
                     <span style="color: var(--green);">✓ Added</span>
                   {:else}
-                    {move.sets}×{move.reps}
+                    {MUSCLE_META[move.muscleGroup].label}
                   {/if}
                 </span>
               </button>
@@ -455,6 +467,46 @@
     font-size: 0.8rem;
     color: var(--text-muted);
     margin-top: 2px;
+  }
+
+  /* ── Week tabs ── */
+  .week-tabs {
+    display: flex;
+    gap: 0.4rem;
+    margin-bottom: 0.5rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 3px;
+  }
+
+  .week-tab {
+    flex: 1;
+    padding: 0.4rem 0;
+    border-radius: calc(var(--radius) - 2px);
+    border: none;
+    background: none;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.18s var(--ease);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+  }
+
+  .week-tab.active {
+    background: var(--accent);
+    color: #09090b;
+    box-shadow: 0 2px 8px rgba(167,139,250,0.35);
+  }
+
+  .week-tab-note {
+    font-size: 0.62rem;
+    font-weight: 600;
+    opacity: 0.7;
   }
 
   /* ── Day pill ── */
