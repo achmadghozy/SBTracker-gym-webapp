@@ -131,19 +131,25 @@
   // ── Template picker ──────────────────────────────────
   let showTemplates = $state(false);
   let pendingTpl = $state<PlanTemplate | null>(null); // waiting for confirm
+  let isApplying = $state(false);
 
   function previewTemplate(tpl: PlanTemplate) {
     pendingTpl = tpl;
   }
 
-  function confirmApply() {
+  async function confirmApply() {
     if (!pendingTpl) return;
+    
+    isApplying = true;
+    await new Promise(r => setTimeout(r, 50));
+
     applyPlanTemplate(pendingTpl.days);
     // Reset selection to week 1, day 0
     selectedWeek = 1;
     selectedDay = 0;
     pendingTpl = null;
     showTemplates = false;
+    isApplying = false;
   }
 
   function cancelApply() {
@@ -660,8 +666,14 @@
         <button
           class="btn btn-primary"
           onclick={confirmApply}
-          id="confirm-apply-btn">Apply Template</button
-        >
+          disabled={isApplying}
+          id="confirm-apply-btn">
+          {#if isApplying}
+            <span class="btn-spinner"></span> Applying...
+          {:else}
+            Apply Template
+          {/if}
+        </button>
       </div>
     </div>
   </div>
@@ -1221,5 +1233,21 @@
 
   .confirm-btns .btn {
     flex: 1;
+  }
+
+  .btn-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 0.8s linear infinite;
+    margin-right: 0.3rem;
+    vertical-align: middle;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 </style>
