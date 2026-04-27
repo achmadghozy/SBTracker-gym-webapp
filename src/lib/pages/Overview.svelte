@@ -5,6 +5,7 @@
     logWeight, logReps, lastWeights, lastReps, todayDayIndex, currentPlanWeek,
   } from '../stores/workout';
   import { MUSCLE_META, DAY_FULL, type Movement } from "../types";
+  import { MUSCLE_ICONS } from '../../assets/muscleIcons';
 
   // ── Computed today data ──────────────────────────────────────
   const now = new Date();
@@ -314,7 +315,7 @@
         <div class="flex items-center justify-between" style="margin-bottom: 0.75rem;">
           <button class="move-header-btn" onclick={() => openProgress(move)} aria-label="View progress for {move.name}">
             <span class="move-icon-wrap" style="background: color-mix(in srgb, {mg.color} 14%, transparent); border-color: color-mix(in srgb, {mg.color} 30%, transparent);">
-              <span class="move-icon">{mg.icon}</span>
+              <img class="move-icon" src={MUSCLE_ICONS[move.muscleGroup]} alt={mg.label} />
             </span>
             <div>
               <h3 class="move-name">{move.name}</h3>
@@ -1068,8 +1069,9 @@
   }
 
   .move-icon {
-    font-size: 1.2rem;
-    line-height: 1;
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
   }
 
   .move-name {

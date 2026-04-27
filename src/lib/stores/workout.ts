@@ -155,6 +155,11 @@ export function deleteMovement(id: string) {
 //  Actions — Workout Plan
 // ============================================================
 
+/** Replace the entire workout plan with a new set of days (e.g. from a template). */
+export function applyPlanTemplate(days: WorkoutPlan['days']) {
+  workoutPlan.set({ days });
+}
+
 export function updateDay(dayIndex: number, patch: Partial<WorkoutPlan['days'][0]>) {
   workoutPlan.update(plan => ({
     ...plan,

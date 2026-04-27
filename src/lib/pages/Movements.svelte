@@ -12,6 +12,7 @@
     type Movement,
     type MuscleGroup,
   } from "../types";
+  import { MUSCLE_ICONS } from '../../assets/muscleIcons';
 
   // ── Filter state ─────────────────────────────────────────────
   let activeFilter = $state<MuscleGroup | "all">("all");
@@ -136,7 +137,7 @@
         onclick={() => (activeFilter = mg)}
         id={`filter-${mg}`}
       >
-        {meta.icon}
+        <img class="tab-mg-icon" src={MUSCLE_ICONS[mg]} alt={meta.label} />
         {meta.label}
         <span class="tab-count">{count}</span>
       </button>
@@ -155,11 +156,10 @@
       {@const meta = MUSCLE_META[group.mg]}
 
       <div class="group-section" id={`group-${group.mg}`}>
-        <div class="group-header">
-          <div class="group-dot" style="background: {meta.color}"></div>
-          <span class="group-label">{meta.icon} {meta.label}</span>
-          <span class="group-count">{group.moves.length}</span>
-        </div>
+          <div class="group-header">
+            <span class="group-label">{meta.label}</span>
+            <span class="group-count">{group.moves.length}</span>
+          </div>
 
         <div class="moves-grid">
           {#each group.moves as move, i}
@@ -177,8 +177,9 @@
                   <span
                     class="mv-icon-wrap"
                     style="background: color-mix(in srgb, {meta.color} 14%, transparent); border-color: color-mix(in srgb, {meta.color} 28%, transparent);"
-                    >{meta.icon}</span
                   >
+                    <img class="mv-mg-icon" src={MUSCLE_ICONS[group.mg]} alt={meta.label} />
+                  </span>
                   <div class="flex-1 truncate">
                     <div class="flex items-center gap-2">
                       <p class="mv-name truncate">{move.name}</p>
@@ -467,7 +468,20 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1rem;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .mv-mg-icon {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+  }
+
+  .tab-mg-icon {
+    width: 14px;
+    height: 14px;
+    object-fit: contain;
     flex-shrink: 0;
   }
 

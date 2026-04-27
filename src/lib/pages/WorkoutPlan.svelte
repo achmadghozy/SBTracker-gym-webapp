@@ -5,6 +5,7 @@
     addMovementToDay,
     removeMovementFromDay,
     updateDay,
+    applyPlanTemplate,
     todayDayIndex,
   } from "../stores/workout";
   import {
@@ -14,23 +15,33 @@
     DAY_FULL,
     type Movement,
   } from "../types";
+  import { PLAN_TEMPLATES, type PlanTemplate } from "../data/planTemplates";
+  import { MUSCLE_ICONS } from '../../assets/muscleIcons';
 
   // ── State ───────────────────────────────────────────────────
   const todayIdx = todayDayIndex(); // 0–13
-  let selectedWeek = $state<1|2>(todayIdx >= 7 ? 2 : 1);
-  let selectedDay  = $state(todayIdx);
-  let showPicker   = $state(false);
+  let selectedWeek = $state<1 | 2>(todayIdx >= 7 ? 2 : 1);
+  let selectedDay = $state(todayIdx);
+  let showPicker = $state(false);
   let editingLabel = $state(false);
-  let labelDraft   = $state('');
-  let pickerSearch = $state('');
+  let labelDraft = $state("");
+  let pickerSearch = $state("");
 
   // Sliced days for each week (days 0–6 and 7–13)
-  let week1Days = $derived($workoutPlan.days.filter(d => d.dayIndex < 7).sort((a,b) => a.dayIndex - b.dayIndex));
-  let week2Days = $derived($workoutPlan.days.filter(d => d.dayIndex >= 7).sort((a,b) => a.dayIndex - b.dayIndex));
+  let week1Days = $derived(
+    $workoutPlan.days
+      .filter((d) => d.dayIndex < 7)
+      .sort((a, b) => a.dayIndex - b.dayIndex),
+  );
+  let week2Days = $derived(
+    $workoutPlan.days
+      .filter((d) => d.dayIndex >= 7)
+      .sort((a, b) => a.dayIndex - b.dayIndex),
+  );
   let visibleDays = $derived(selectedWeek === 1 ? week1Days : week2Days);
 
   // ── Derived ─────────────────────────────────────────────────
-  let day = $derived($workoutPlan.days.find(d => d.dayIndex === selectedDay));
+  let day = $derived($workoutPlan.days.find((d) => d.dayIndex === selectedDay));
 
   let dayMovements = $derived(
     (day?.movementIds ?? [])
@@ -65,7 +76,7 @@
 
   // Muscle group breakdown chips for each day
   function getDayMuscleGroups(dayIdx: number) {
-    const d = $workoutPlan.days[dayIdx];
+    const d = $workoutPlan.days.find((d) => d.dayIndex === dayIdx);
     if (!d || d.isRest) return [];
     const groups = new Set(
       d.movementIds
@@ -116,24 +127,99 @@
     }
     editingLabel = false;
   }
+
+  // ── Template picker ──────────────────────────────────
+  let showTemplates = $state(false);
+  let pendingTpl = $state<PlanTemplate | null>(null); // waiting for confirm
+
+  function previewTemplate(tpl: PlanTemplate) {
+    pendingTpl = tpl;
+  }
+
+  function confirmApply() {
+    if (!pendingTpl) return;
+    applyPlanTemplate(pendingTpl.days);
+    // Reset selection to week 1, day 0
+    selectedWeek = 1;
+    selectedDay = 0;
+    pendingTpl = null;
+    showTemplates = false;
+  }
+
+  function cancelApply() {
+    pendingTpl = null;
+  }
 </script>
 
 <main class="page" id="workout-plan-page">
   <!-- ── Header ── -->
   <div class="page-header">
-    <h1 class="page-title">Workout Plan</h1>
-    <p class="page-sub">Build your weekly routine</p>
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="page-title">Workout Plan</h1>
+        <p class="page-sub">Build your weekly routine</p>
+      </div>
+      <button
+        class="btn btn-secondary btn-sm"
+        onclick={() => (showTemplates = true)}
+        id="templates-btn"
+      >
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="3" y="3" width="7" height="7" rx="1" /><rect
+            x="14"
+            y="3"
+            width="7"
+            height="7"
+            rx="1"
+          />
+          <rect x="3" y="14" width="7" height="7" rx="1" /><rect
+            x="14"
+            y="14"
+            width="7"
+            height="7"
+            rx="1"
+          />
+        </svg>
+        Templates
+      </button>
+    </div>
   </div>
 
   <!-- ── Week tabs ── -->
   <div class="week-tabs" role="tablist" aria-label="Select week">
-    <button class="week-tab" class:active={selectedWeek === 1} role="tab"
-      onclick={() => { selectedWeek = 1; selectDay(week1Days[0]?.dayIndex ?? 0); }}
-      aria-selected={selectedWeek === 1} id="week1-tab">Week 1</button>
-    <button class="week-tab" class:active={selectedWeek === 2} role="tab"
-      onclick={() => { selectedWeek = 2; selectDay(week2Days[0]?.dayIndex ?? 7); }}
-      aria-selected={selectedWeek === 2} id="week2-tab">Week 2
-      {#if week2Days.length === 0}<span class="week-tab-note">(copy of W1)</span>{/if}
+    <button
+      class="week-tab"
+      class:active={selectedWeek === 1}
+      role="tab"
+      onclick={() => {
+        selectedWeek = 1;
+        selectDay(week1Days[0]?.dayIndex ?? 0);
+      }}
+      aria-selected={selectedWeek === 1}
+      id="week1-tab">Week 1</button
+    >
+    <button
+      class="week-tab"
+      class:active={selectedWeek === 2}
+      role="tab"
+      onclick={() => {
+        selectedWeek = 2;
+        selectDay(week2Days[0]?.dayIndex ?? 7);
+      }}
+      aria-selected={selectedWeek === 2}
+      id="week2-tab"
+      >Week 2
+      {#if week2Days.length === 0}<span class="week-tab-note">(copy of W1)</span
+        >{/if}
     </button>
   </div>
 
@@ -157,9 +243,14 @@
         {/if}
         <span class="day-pill-name">{DAY_SHORT[d.dayIndex % 7]}</span>
         {#if d.isRest}
-          <span class="day-pill-dot" style="background: var(--text-muted)"></span>
+          <span class="day-pill-dot" style="background: var(--text-muted)"
+          ></span>
         {:else if mgs.length > 0}
-          <span class="day-pill-dot" style="background: {MUSCLE_META[mgs[0] as keyof typeof MUSCLE_META]?.color ?? 'var(--surface-3)'}"></span>
+          <span
+            class="day-pill-dot"
+            style="background: {MUSCLE_META[mgs[0] as keyof typeof MUSCLE_META]
+              ?.color ?? 'var(--surface-3)'}"
+          ></span>
         {:else}
           <span class="day-pill-dot"></span>
         {/if}
@@ -242,7 +333,7 @@
               class="plan-chip"
               style="background: color-mix(in srgb, {meta.color} 12%, transparent); color: {meta.color}; border-color: color-mix(in srgb, {meta.color} 30%, transparent)"
             >
-              {meta.icon}
+              <img class="chip-mg-icon" src={MUSCLE_ICONS[mg]} alt={meta.label} />
               {meta.label}
             </span>
           {/each}
@@ -276,11 +367,13 @@
                   class="move-emoji-wrap"
                   style="background: color-mix(in srgb, {mg.color} 14%, transparent); border-color: color-mix(in srgb, {mg.color} 28%, transparent);"
                 >
-                  {mg.icon}
+                  <img class="plan-mg-icon" src={MUSCLE_ICONS[move.muscleGroup]} alt={mg.label} />
                 </span>
                 <div class="flex-1 truncate">
                   <p class="move-name truncate">{move.name}</p>
-                  <span class="badge badge-mg" style="--mg: {mg.color}">{mg.label}</span>
+                  <span class="badge badge-mg" style="--mg: {mg.color}"
+                    >{mg.label}</span
+                  >
                 </div>
                 <button
                   class="btn-icon remove-btn"
@@ -429,10 +522,13 @@
       {:else}
         {#each groupedAvailable as group}
           {@const meta = MUSCLE_META[group.mg]}
-          <p class="section-label">{meta.icon} {meta.label}</p>
+          <p class="section-label">
+            {meta.label}
+          </p>
           <div class="picker-group">
             {#each group.moves as move}
-              {@const alreadyAdded = day?.movementIds.includes(move.id) ?? false}
+              {@const alreadyAdded =
+                day?.movementIds.includes(move.id) ?? false}
               <button
                 class="picker-item"
                 class:picker-added={alreadyAdded}
@@ -440,7 +536,12 @@
                 id={`pick-${move.id}`}
                 disabled={alreadyAdded}
               >
-                <span class="picker-name">{move.name}</span>
+                <div class="flex items-center gap-3">
+                  <span class="picker-icon-wrap" style="background: color-mix(in srgb, {MUSCLE_META[move.muscleGroup].color} 14%, transparent); border: 1px solid color-mix(in srgb, {MUSCLE_META[move.muscleGroup].color} 28%, transparent);">
+                    <img class="picker-mg-icon" src={MUSCLE_ICONS[move.muscleGroup]} alt={MUSCLE_META[move.muscleGroup].label} />
+                  </span>
+                  <span class="picker-name">{move.name}</span>
+                </div>
                 <span class="picker-meta">
                   {#if alreadyAdded}
                     <span style="color: var(--green);">✓ Added</span>
@@ -453,6 +554,115 @@
           </div>
         {/each}
       {/if}
+    </div>
+  </div>
+{/if}
+
+<!-- ── Template Picker Sheet ── -->
+{#if showTemplates}
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_interactive_supports_focus -->
+  <div
+    class="modal-overlay"
+    onclick={(e) => {
+      if (e.target === e.currentTarget) showTemplates = false;
+    }}
+    id="templates-overlay"
+    tabindex="-1"
+  >
+    <div
+      class="modal-sheet tpl-sheet"
+      aria-modal="true"
+      aria-label="Choose a plan template"
+      tabindex="-1"
+    >
+      <div class="modal-handle"></div>
+      <div class="tpl-sheet-head">
+        <h2 class="modal-title">Plan Templates</h2>
+        <p class="tpl-sheet-sub">
+          Pick a template to load. Your current plan will be replaced.
+        </p>
+      </div>
+
+      <div class="tpl-list">
+        {#each PLAN_TEMPLATES as tpl}
+          <button
+            class="tpl-card"
+            onclick={() => previewTemplate(tpl)}
+            id={`tpl-${tpl.id}`}
+          >
+            <span class="tpl-icon">{tpl.icon}</span>
+            <div class="tpl-info">
+              <p class="tpl-name">{tpl.name}</p>
+              <p class="tpl-desc">{tpl.description}</p>
+              <div class="tpl-meta-row">
+                <span class="tpl-badge tpl-badge-schedule">{tpl.schedule}</span>
+                <span
+                  class="tpl-badge tpl-badge-diff"
+                  class:diff-beginner={tpl.difficulty === "Beginner"}
+                  class:diff-intermediate={tpl.difficulty === "Intermediate"}
+                  class:diff-advanced={tpl.difficulty === "Advanced"}
+                  >{tpl.difficulty}</span
+                >
+              </div>
+            </div>
+            <svg
+              class="tpl-arrow"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
+        {/each}
+      </div>
+
+      <button
+        class="btn btn-secondary btn-full"
+        onclick={() => (showTemplates = false)}
+        style="margin-top: 0.75rem;"
+      >
+        Cancel
+      </button>
+    </div>
+  </div>
+{/if}
+
+<!-- ── Confirm Apply Dialog ── -->
+{#if pendingTpl}
+  <div class="confirm-overlay" id="tpl-confirm-overlay" tabindex="-1">
+    <div
+      class="confirm-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-title"
+    >
+      <span class="confirm-icon">{pendingTpl.icon}</span>
+      <h3 class="confirm-title" id="confirm-title">
+        Apply "{pendingTpl.name}"?
+      </h3>
+      <p class="confirm-body">
+        This will replace your current workout plan with the <strong
+          >{pendingTpl.name}</strong
+        > template. Your logged sessions are not affected.
+      </p>
+      <div class="confirm-btns">
+        <button
+          class="btn btn-secondary"
+          onclick={cancelApply}
+          id="confirm-cancel-btn">Cancel</button
+        >
+        <button
+          class="btn btn-primary"
+          onclick={confirmApply}
+          id="confirm-apply-btn">Apply Template</button
+        >
+      </div>
     </div>
   </div>
 {/if}
@@ -500,7 +710,7 @@
   .week-tab.active {
     background: var(--accent);
     color: #09090b;
-    box-shadow: 0 2px 8px rgba(167,139,250,0.35);
+    box-shadow: 0 2px 8px rgba(167, 139, 250, 0.35);
   }
 
   .week-tab-note {
@@ -633,7 +843,36 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.15rem;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .plan-mg-icon {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+  }
+
+  .chip-mg-icon {
+    width: 14px;
+    height: 14px;
+    object-fit: contain;
+  }
+
+  .picker-mg-icon {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+
+  .picker-icon-wrap {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-xs);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
   }
 
@@ -767,5 +1006,220 @@
     font-size: 0.8rem;
     color: var(--text-muted);
     font-weight: 500;
+  }
+
+  /* ── Template picker sheet ── */
+  .tpl-sheet {
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .tpl-sheet-head {
+    margin-bottom: 0.875rem;
+  }
+
+  .tpl-sheet-sub {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-top: 0.2rem;
+  }
+
+  .tpl-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    overflow-y: auto;
+    flex: 1;
+    padding-right: 2px; /* space for scrollbar */
+  }
+
+  .tpl-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.8rem 0.875rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    text-align: left;
+    transition:
+      background 0.15s,
+      border-color 0.15s,
+      transform 0.12s;
+    width: 100%;
+  }
+
+  .tpl-card:hover {
+    background: var(--surface-3);
+    border-color: rgba(167, 139, 250, 0.5);
+  }
+  .tpl-card:active {
+    transform: scale(0.985);
+  }
+
+  .tpl-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+    line-height: 1;
+    margin-top: 1px;
+  }
+
+  .tpl-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .tpl-name {
+    font-size: 0.9rem;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 0.2rem;
+    letter-spacing: -0.02em;
+  }
+
+  .tpl-desc {
+    font-size: 0.73rem;
+    color: var(--text-muted);
+    line-height: 1.45;
+    margin-bottom: 0.45rem;
+  }
+
+  .tpl-meta-row {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .tpl-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 0.15rem 0.45rem;
+    border-radius: 999px;
+    border: 1px solid;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+  }
+
+  .tpl-badge-schedule {
+    background: rgba(167, 139, 250, 0.1);
+    color: var(--accent);
+    border-color: rgba(167, 139, 250, 0.3);
+  }
+
+  .tpl-badge-diff.diff-beginner {
+    background: rgba(74, 222, 128, 0.1);
+    color: var(--green);
+    border-color: rgba(74, 222, 128, 0.3);
+  }
+
+  .tpl-badge-diff.diff-intermediate {
+    background: rgba(251, 191, 36, 0.1);
+    color: var(--orange);
+    border-color: rgba(251, 191, 36, 0.3);
+  }
+
+  .tpl-badge-diff.diff-advanced {
+    background: rgba(239, 68, 68, 0.1);
+    color: #f87171;
+    border-color: rgba(239, 68, 68, 0.3);
+  }
+
+  .tpl-arrow {
+    color: var(--text-muted);
+    opacity: 0.45;
+    flex-shrink: 0;
+    align-self: center;
+    transition:
+      opacity 0.15s,
+      transform 0.15s;
+  }
+
+  .tpl-card:hover .tpl-arrow {
+    opacity: 0.9;
+    transform: translateX(2px);
+  }
+
+  /* ── Confirm overlay ── */
+  .confirm-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    animation: fade-in 0.15s ease both;
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .confirm-dialog {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    max-width: 20rem;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+    animation: slide-up 0.2s var(--ease) both;
+  }
+
+  @keyframes slide-up {
+    from {
+      transform: translateY(12px);
+      opacity: 0;
+    }
+    to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  .confirm-icon {
+    font-size: 2.5rem;
+    display: block;
+    margin-bottom: 0.75rem;
+  }
+
+  .confirm-title {
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    margin-bottom: 0.5rem;
+  }
+
+  .confirm-body {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-bottom: 1.25rem;
+  }
+
+  .confirm-body strong {
+    color: var(--text);
+    font-weight: 700;
+  }
+
+  .confirm-btns {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .confirm-btns .btn {
+    flex: 1;
   }
 </style>
