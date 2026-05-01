@@ -4,6 +4,7 @@
   import Overview from "./lib/pages/Overview.svelte";
   import WorkoutPlan from "./lib/pages/WorkoutPlan.svelte";
   import Movements from "./lib/pages/Movements.svelte";
+  import { isReady } from "./lib/stores/workout";
 
   type Page = "overview" | "workout-plan" | "movements";
   let currentPage = $state<Page>("overview");
@@ -16,17 +17,23 @@
 </script>
 
 <div id="app-shell">
-  {#key currentPage}
-    {#if currentPage === "overview"}
-      <Overview />
-    {:else if currentPage === "workout-plan"}
-      <WorkoutPlan />
-    {:else}
-      <Movements />
-    {/if}
-  {/key}
+  {#if $isReady}
+    {#key currentPage}
+      {#if currentPage === "overview"}
+        <Overview />
+      {:else if currentPage === "workout-plan"}
+        <WorkoutPlan />
+      {:else}
+        <Movements />
+      {/if}
+    {/key}
 
-  <BottomNav current={currentPage} onChange={navigate} />
+    <BottomNav current={currentPage} onChange={navigate} />
+  {:else}
+    <div class="loading-screen">
+      <div class="spinner"></div>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -50,5 +57,26 @@
       border-right: 1px solid rgba(255, 255, 255, 0.05);
       box-shadow: 0 0 60px rgba(0, 0, 0, 0.6);
     }
+  }
+
+  .loading-screen {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100svh;
+  }
+
+  .spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(167, 139, 250, 0.2);
+    border-radius: 50%;
+    border-top-color: var(--accent);
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 </style>

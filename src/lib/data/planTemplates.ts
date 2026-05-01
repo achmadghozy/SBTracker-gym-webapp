@@ -58,12 +58,12 @@ const PPL_PLUS_PULL = [
 ];
 
 // Bro split pools
-const CHEST_MOVES  = ['bench-press', 'incline-bench', 'dumbbell-fly', 'cable-crossover', 'chest-dips'];
-const BACK_MOVES   = ['deadlift', 'pull-up', 'bent-over-row', 'lat-pulldown', 'seated-row', 'face-pull'];
-const SHLDR_MOVES  = ['ohp', 'lateral-raise', 'front-raise', 'rear-delt-fly', 'arnold-press'];
-const ARMS_MOVES   = ['bicep-curl', 'hammer-curl', 'preacher-curl', 'tricep-pushdown', 'skull-crusher'];
-const LEGS_BRO     = ['squat', 'leg-press', 'rdl', 'leg-curl', 'leg-extension', 'hip-thrust', 'calf-raise'];
-const CORE_MOVES   = ['plank', 'crunches', 'russian-twist', 'leg-raise', 'ab-wheel'];
+const CHEST_MOVES = ['bench-press', 'incline-bench', 'dumbbell-fly', 'cable-crossover', 'chest-dips'];
+const BACK_MOVES = ['deadlift', 'pull-up', 'bent-over-row', 'lat-pulldown', 'seated-row', 'face-pull'];
+const SHLDR_MOVES = ['ohp', 'lateral-raise', 'front-raise', 'rear-delt-fly', 'arnold-press'];
+const ARMS_MOVES = ['bicep-curl', 'hammer-curl', 'preacher-curl', 'tricep-pushdown', 'skull-crusher'];
+const LEGS_BRO = ['squat', 'leg-press', 'rdl', 'leg-curl', 'leg-extension', 'hip-thrust', 'calf-raise'];
+const CORE_MOVES = ['plank', 'crunches', 'russian-twist', 'leg-raise', 'ab-wheel'];
 
 // ── Helpers ───────────────────────────────────────────────────
 function rest(dayIndex: number): WorkoutPlan['days'][0] {
@@ -84,16 +84,16 @@ const fullBodyEOD: PlanTemplate = {
   schedule: '3 days/week · 2-week cycle',
   difficulty: 'Beginner',
   days: [
-    workout(0,  'Full Body A', FB_A_MOVES),
+    workout(0, 'Full Body A', FB_A_MOVES),
     rest(1),
-    workout(2,  'Full Body B', FB_B_MOVES),
+    workout(2, 'Full Body B', FB_B_MOVES),
     rest(3),
-    workout(4,  'Full Body A', FB_A_MOVES),
+    workout(4, 'Full Body A', FB_A_MOVES),
     rest(5),
     rest(6),
-    workout(7,  'Full Body B', FB_B_MOVES),
+    workout(7, 'Full Body B', FB_B_MOVES),
     rest(8),
-    workout(9,  'Full Body A', FB_A_MOVES),
+    workout(9, 'Full Body A', FB_A_MOVES),
     rest(10),
     workout(11, 'Full Body B', FB_B_MOVES),
     rest(12),
@@ -112,20 +112,20 @@ const upperLower: PlanTemplate = {
   schedule: '4 days/week · 2-week cycle',
   difficulty: 'Intermediate',
   days: [
-    workout(0,  'Upper', UPPER_MOVES),
-    workout(1,  'Lower', LEGS_MOVES),
-    rest(2),
-    workout(3,  'Upper', UPPER_MOVES),
-    workout(4,  'Lower', LEGS_MOVES),
-    rest(5),
-    rest(6),
-    workout(7,  'Upper', UPPER_MOVES),
-    workout(8,  'Lower', LEGS_MOVES),
-    rest(9),
+    workout(0, 'Upper', UPPER_MOVES),
+    workout(1, 'Lower', LEGS_MOVES),
+    workout(2, 'Upper', UPPER_MOVES),
+    workout(3, 'Lower', LEGS_MOVES),
+    workout(4, 'Upper', UPPER_MOVES),
+    workout(5, 'Lower', LEGS_MOVES),
+    workout(6, 'Upper', UPPER_MOVES),
+    workout(7, 'Lower', LEGS_MOVES),
+    workout(8, 'Upper', UPPER_MOVES),
+    workout(9, 'Lower', LEGS_MOVES),
     workout(10, 'Upper', UPPER_MOVES),
     workout(11, 'Lower', LEGS_MOVES),
-    rest(12),
-    rest(13),
+    workout(12, 'Upper', UPPER_MOVES),
+    workout(13, 'Lower', LEGS_MOVES),
   ],
 };
 
@@ -140,19 +140,19 @@ const broSplit: PlanTemplate = {
   schedule: '5–6 days/week · weekly cycle',
   difficulty: 'Intermediate',
   days: [
-    workout(0,  'Chest',     CHEST_MOVES),
-    workout(1,  'Back',      BACK_MOVES),
-    workout(2,  'Shoulders', SHLDR_MOVES),
-    workout(3,  'Arms',      ARMS_MOVES),
-    workout(4,  'Legs',      LEGS_BRO),
-    workout(5,  'Core',      CORE_MOVES),
+    workout(0, 'Chest', CHEST_MOVES),
+    workout(1, 'Back', BACK_MOVES),
+    workout(2, 'Shoulders', SHLDR_MOVES),
+    workout(3, 'Arms', ARMS_MOVES),
+    workout(4, 'Legs', LEGS_BRO),
+    workout(5, 'Core', CORE_MOVES),
     rest(6),
-    workout(7,  'Chest',     CHEST_MOVES),
-    workout(8,  'Back',      BACK_MOVES),
-    workout(9,  'Shoulders', SHLDR_MOVES),
-    workout(10, 'Arms',      ARMS_MOVES),
-    workout(11, 'Legs',      LEGS_BRO),
-    workout(12, 'Core',      CORE_MOVES),
+    workout(7, 'Chest', CHEST_MOVES),
+    workout(8, 'Back', BACK_MOVES),
+    workout(9, 'Shoulders', SHLDR_MOVES),
+    workout(10, 'Arms', ARMS_MOVES),
+    workout(11, 'Legs', LEGS_BRO),
+    workout(12, 'Core', CORE_MOVES),
     rest(13),
   ],
 };
@@ -168,16 +168,16 @@ const pushPullLegs: PlanTemplate = {
   schedule: '6 days/week · 2-week cycle',
   difficulty: 'Advanced',
   days: [
-    workout(0,  'Push', PUSH_MOVES),
-    workout(1,  'Pull', PULL_MOVES),
-    workout(2,  'Legs', LEGS_MOVES),
-    workout(3,  'Push', PUSH_MOVES),
-    workout(4,  'Pull', PULL_MOVES),
-    workout(5,  'Legs', LEGS_MOVES),
+    workout(0, 'Push', PUSH_MOVES),
+    workout(1, 'Pull', PULL_MOVES),
+    workout(2, 'Legs', LEGS_MOVES),
+    workout(3, 'Push', PUSH_MOVES),
+    workout(4, 'Pull', PULL_MOVES),
+    workout(5, 'Legs', LEGS_MOVES),
     rest(6),
-    workout(7,  'Push', PUSH_MOVES),
-    workout(8,  'Pull', PULL_MOVES),
-    workout(9,  'Legs', LEGS_MOVES),
+    workout(7, 'Push', PUSH_MOVES),
+    workout(8, 'Pull', PULL_MOVES),
+    workout(9, 'Legs', LEGS_MOVES),
     workout(10, 'Push', PUSH_MOVES),
     workout(11, 'Pull', PULL_MOVES),
     workout(12, 'Legs', LEGS_MOVES),
@@ -196,15 +196,15 @@ const pushPull: PlanTemplate = {
   schedule: '4 days/week · 2-week cycle',
   difficulty: 'Intermediate',
   days: [
-    workout(0,  'Push + Legs', PPL_PLUS_PUSH),
-    workout(1,  'Pull + Legs', PPL_PLUS_PULL),
+    workout(0, 'Push + Legs', PPL_PLUS_PUSH),
+    workout(1, 'Pull + Legs', PPL_PLUS_PULL),
     rest(2),
-    workout(3,  'Push + Legs', PPL_PLUS_PUSH),
-    workout(4,  'Pull + Legs', PPL_PLUS_PULL),
+    workout(3, 'Push + Legs', PPL_PLUS_PUSH),
+    workout(4, 'Pull + Legs', PPL_PLUS_PULL),
     rest(5),
     rest(6),
-    workout(7,  'Push + Legs', PPL_PLUS_PUSH),
-    workout(8,  'Pull + Legs', PPL_PLUS_PULL),
+    workout(7, 'Push + Legs', PPL_PLUS_PUSH),
+    workout(8, 'Pull + Legs', PPL_PLUS_PULL),
     rest(9),
     workout(10, 'Push + Legs', PPL_PLUS_PUSH),
     workout(11, 'Pull + Legs', PPL_PLUS_PULL),

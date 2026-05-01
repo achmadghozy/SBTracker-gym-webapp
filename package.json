@@ -19,6 +19,7 @@
     "vite": "^8.0.4"
   },
   "dependencies": {
+    "idb-keyval": "^6.2.2",
     "npx": "^10.2.2"
   }
 }
