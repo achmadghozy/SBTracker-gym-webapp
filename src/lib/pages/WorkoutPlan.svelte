@@ -7,6 +7,9 @@
     updateDay,
     applyPlanTemplate,
     todayDayIndex,
+    customTemplates,
+    saveCustomTemplate,
+    deleteCustomTemplate,
   } from "../stores/workout";
   import {
     MUSCLE_META,
@@ -16,7 +19,7 @@
     type Movement,
   } from "../types";
   import { PLAN_TEMPLATES, type PlanTemplate } from "../data/planTemplates";
-  import { MUSCLE_ICONS } from '../../assets/muscleIcons';
+  import { MUSCLE_ICONS } from "../../assets/muscleIcons";
 
   // ── State ───────────────────────────────────────────────────
   const todayIdx = todayDayIndex(); // 0–13
@@ -133,15 +136,32 @@
   let pendingTpl = $state<PlanTemplate | null>(null); // waiting for confirm
   let isApplying = $state(false);
 
+  // ── Custom Template Saving ───────────────────────────
+  let showSaveTemplate = $state(false);
+  let saveTemplateName = $state("");
+  let saveTemplateDesc = $state("");
+
+  function submitSaveTemplate() {
+    if (!saveTemplateName.trim()) return;
+    saveCustomTemplate(
+      saveTemplateName.trim(),
+      saveTemplateDesc.trim(),
+      $workoutPlan.days,
+    );
+    saveTemplateName = "";
+    saveTemplateDesc = "";
+    showSaveTemplate = false;
+  }
+
   function previewTemplate(tpl: PlanTemplate) {
     pendingTpl = tpl;
   }
 
   async function confirmApply() {
     if (!pendingTpl) return;
-    
+
     isApplying = true;
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise((r) => setTimeout(r, 50));
 
     applyPlanTemplate(pendingTpl.days);
     // Reset selection to week 1, day 0
@@ -165,38 +185,63 @@
         <h1 class="page-title">Workout Plan</h1>
         <p class="page-sub">Build your weekly routine</p>
       </div>
-      <button
-        class="btn btn-secondary btn-sm"
-        onclick={() => (showTemplates = true)}
-        id="templates-btn"
-      >
-        <svg
-          width="13"
-          height="13"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+      <div class="flex items-center gap-2">
+        <button
+          class="btn btn-secondary btn-sm"
+          onclick={() => (showSaveTemplate = true)}
+          id="save-template-btn"
+          aria-label="Save as Template"
         >
-          <rect x="3" y="3" width="7" height="7" rx="1" /><rect
-            x="14"
-            y="3"
-            width="7"
-            height="7"
-            rx="1"
-          />
-          <rect x="3" y="14" width="7" height="7" rx="1" /><rect
-            x="14"
-            y="14"
-            width="7"
-            height="7"
-            rx="1"
-          />
-        </svg>
-        Templates
-      </button>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"
+            ></path>
+            <polyline points="17 21 17 13 7 13 7 21"></polyline>
+            <polyline points="7 3 7 8 15 8"></polyline>
+          </svg>
+        </button>
+        <button
+          class="btn btn-secondary btn-sm"
+          onclick={() => (showTemplates = true)}
+          id="templates-btn"
+        >
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="3" y="3" width="7" height="7" rx="1" /><rect
+              x="14"
+              y="3"
+              width="7"
+              height="7"
+              rx="1"
+            />
+            <rect x="3" y="14" width="7" height="7" rx="1" /><rect
+              x="14"
+              y="14"
+              width="7"
+              height="7"
+              rx="1"
+            />
+          </svg>
+          Templates
+        </button>
+      </div>
     </div>
   </div>
 
@@ -339,7 +384,11 @@
               class="plan-chip"
               style="background: color-mix(in srgb, {meta.color} 12%, transparent); color: {meta.color}; border-color: color-mix(in srgb, {meta.color} 30%, transparent)"
             >
-              <img class="chip-mg-icon" src={MUSCLE_ICONS[mg]} alt={meta.label} />
+              <img
+                class="chip-mg-icon"
+                src={MUSCLE_ICONS[mg]}
+                alt={meta.label}
+              />
               {meta.label}
             </span>
           {/each}
@@ -368,18 +417,32 @@
               id={`plan-move-${move.id}`}
               style="animation-delay: {i * 30}ms"
             >
-              <div class="flex items-center gap-3 justify-">
-                <span
-                  class="move-emoji-wrap"
-                  style="background: color-mix(in srgb, {mg.color} 14%, transparent); border-color: color-mix(in srgb, {mg.color} 28%, transparent);"
+              <div class="flex items-center justify-between gap-3">
+                <div
+                  class="flex items-center gap-3 flex-1"
+                  style="min-width: 0;"
                 >
-                  <img class="plan-mg-icon" src={MUSCLE_ICONS[move.muscleGroup]} alt={mg.label} />
-                </span>
-                <div class="flex-1 truncate">
-                  <p class="move-name truncate">{move.name}</p>
-                  <span class="badge badge-mg" style="--mg: {mg.color}"
-                    >{mg.label}</span
+                  <span
+                    class="move-emoji-wrap"
+                    style="background: color-mix(in srgb, {mg.color} 14%, transparent); border-color: color-mix(in srgb, {mg.color} 28%, transparent);"
                   >
+                    <img
+                      class="plan-mg-icon"
+                      src={MUSCLE_ICONS[move.muscleGroup]}
+                      alt={mg.label}
+                    />
+                  </span>
+                  <div
+                    class="flex-1 min-w-0"
+                    style="display: flex; flex-direction: column; justify-content: center; gap: 4px;"
+                  >
+                    <p class="move-name truncate">{move.name}</p>
+                    <div style="display: flex; align-items: center;">
+                      <span class="badge badge-mg" style="--mg: {mg.color}"
+                        >{mg.label}</span
+                      >
+                    </div>
+                  </div>
                 </div>
                 <button
                   class="btn-icon remove-btn"
@@ -543,8 +606,20 @@
                 disabled={alreadyAdded}
               >
                 <div class="flex items-center gap-3">
-                  <span class="picker-icon-wrap" style="background: color-mix(in srgb, {MUSCLE_META[move.muscleGroup].color} 14%, transparent); border: 1px solid color-mix(in srgb, {MUSCLE_META[move.muscleGroup].color} 28%, transparent);">
-                    <img class="picker-mg-icon" src={MUSCLE_ICONS[move.muscleGroup]} alt={MUSCLE_META[move.muscleGroup].label} />
+                  <span
+                    class="picker-icon-wrap"
+                    style="background: color-mix(in srgb, {MUSCLE_META[
+                      move.muscleGroup
+                    ]
+                      .color} 14%, transparent); border: 1px solid color-mix(in srgb, {MUSCLE_META[
+                      move.muscleGroup
+                    ].color} 28%, transparent);"
+                  >
+                    <img
+                      class="picker-mg-icon"
+                      src={MUSCLE_ICONS[move.muscleGroup]}
+                      alt={MUSCLE_META[move.muscleGroup].label}
+                    />
                   </span>
                   <span class="picker-name">{move.name}</span>
                 </div>
@@ -590,6 +665,57 @@
       </div>
 
       <div class="tpl-list">
+        {#if $customTemplates.length > 0}
+          <div class="tpl-section">
+            <h3 class="tpl-section-title">Your Templates</h3>
+            {#each $customTemplates as tpl}
+              <div class="tpl-card-wrap">
+                <button
+                  class="tpl-card"
+                  onclick={() => previewTemplate(tpl)}
+                  id={`tpl-${tpl.id}`}
+                >
+                  <span class="tpl-icon">{tpl.icon}</span>
+                  <div class="tpl-info">
+                    <p class="tpl-name">{tpl.name}</p>
+                    {#if tpl.description}<p class="tpl-desc">
+                        {tpl.description}
+                      </p>{/if}
+                    <div class="tpl-meta-row">
+                      <span class="tpl-badge tpl-badge-schedule"
+                        >{tpl.schedule}</span
+                      >
+                    </div>
+                  </div>
+                </button>
+                <button
+                  class="btn-icon delete-tpl-btn"
+                  aria-label="Delete template"
+                  onclick={(e) => {
+                    e.stopPropagation();
+                    deleteCustomTemplate(tpl.id);
+                  }}
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    ><path
+                      d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"
+                    /></svg
+                  >
+                </button>
+              </div>
+            {/each}
+          </div>
+          <h3 class="tpl-section-title">Pre-built Templates</h3>
+        {/if}
+
         {#each PLAN_TEMPLATES as tpl}
           <button
             class="tpl-card"
@@ -667,12 +793,84 @@
           class="btn btn-primary"
           onclick={confirmApply}
           disabled={isApplying}
-          id="confirm-apply-btn">
+          id="confirm-apply-btn"
+        >
           {#if isApplying}
             <span class="btn-spinner"></span> Applying...
           {:else}
             Apply Template
           {/if}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- ── Save Template Modal ── -->
+{#if showSaveTemplate}
+  <div
+    class="modal-overlay"
+    onclick={(e) => {
+      if (e.target === e.currentTarget) showSaveTemplate = false;
+    }}
+    id="save-template-overlay"
+    tabindex="-1"
+  >
+    <div
+      class="confirm-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="save-template-title"
+    >
+      <h3 class="confirm-title" id="save-template-title">Save as Template</h3>
+      <p class="confirm-body">Save your current plan to use it later.</p>
+
+      <div
+        style="margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem; text-align: left;"
+      >
+        <label
+          for="tpl-name-input"
+          style="font-size: 0.85rem; color: var(--text-muted)"
+          >Template Name</label
+        >
+        <input
+          type="text"
+          class="input"
+          id="tpl-name-input"
+          bind:value={saveTemplateName}
+          placeholder="E.g. Summer Shred"
+        />
+      </div>
+      <div
+        style="margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem; text-align: left;"
+      >
+        <label
+          for="tpl-desc-input"
+          style="font-size: 0.85rem; color: var(--text-muted)"
+          >Description (optional)</label
+        >
+        <textarea
+          class="input"
+          id="tpl-desc-input"
+          bind:value={saveTemplateDesc}
+          placeholder="Brief details about this split..."
+          rows="2"
+        ></textarea>
+      </div>
+
+      <div class="confirm-btns" style="margin-top: 1.5rem;">
+        <button
+          class="btn btn-secondary"
+          onclick={() => (showSaveTemplate = false)}
+        >
+          Cancel
+        </button>
+        <button
+          class="btn btn-primary"
+          onclick={submitSaveTemplate}
+          disabled={!saveTemplateName.trim()}
+        >
+          Save Template
         </button>
       </div>
     </div>
@@ -1248,6 +1446,8 @@
   }
 
   @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
 </style>

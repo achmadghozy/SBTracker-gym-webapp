@@ -1,6 +1,7 @@
 import { writable, derived } from 'svelte/store';
 import type { Movement, WorkoutPlan, DailyLog } from '../types';
 import { defaultMovements } from '../data/defaultMovements';
+import type { PlanTemplate } from '../data/planTemplates';
 import { get, set } from 'idb-keyval';
 
 // ============================================================
@@ -63,6 +64,7 @@ export const isReady = writable(false);
 export const movements = writable<Movement[]>(defaultMovements);
 export const workoutPlan = writable<WorkoutPlan>(defaultPlan());
 export const dailyLogs = writable<DailyLog[]>([]);
+export const customTemplates = writable<PlanTemplate[]>([]);
 
 async function initStore<T>(key: string, fallback: T, store: ReturnType<typeof writable<T>>) {
   const dbVal = await get<T>(key);
@@ -89,13 +91,15 @@ async function initStore<T>(key: string, fallback: T, store: ReturnType<typeof w
 Promise.all([
   initStore('sb-movements', defaultMovements, movements),
   initStore('sb-plan', defaultPlan(), workoutPlan),
-  initStore('sb-logs', [], dailyLogs)
+  initStore('sb-logs', [], dailyLogs),
+  initStore('sb-custom-templates', [], customTemplates)
 ]).then(() => {
   isReady.set(true);
 
-  movements.subscribe(val => set('sb-movements', val).catch(console.error));
-  workoutPlan.subscribe(val => set('sb-plan', val).catch(console.error));
-  dailyLogs.subscribe(val => set('sb-logs', val).catch(console.error));
+  movements.subscribe(val => set('sb-movements', JSON.parse(JSON.stringify(val))).catch(console.error));
+  workoutPlan.subscribe(val => set('sb-plan', JSON.parse(JSON.stringify(val))).catch(console.error));
+  dailyLogs.subscribe(val => set('sb-logs', JSON.parse(JSON.stringify(val))).catch(console.error));
+  customTemplates.subscribe(val => set('sb-custom-templates', JSON.parse(JSON.stringify(val))).catch(console.error));
 });
 
 // ---- Derived: today's log ----
@@ -197,6 +201,25 @@ export function removeMovementFromDay(dayIndex: number, movementId: string) {
         : d
     ),
   }));
+}
+
+export function saveCustomTemplate(name: string, description: string, days: WorkoutPlan['days']) {
+  const id = `custom-${Date.now()}`;
+  const tpl: PlanTemplate = {
+    id,
+    name,
+    description,
+    icon: '⭐',
+    schedule: 'Custom',
+    difficulty: 'Intermediate',
+    // Must clone days deeply so mutations don't leak
+    days: JSON.parse(JSON.stringify(days))
+  };
+  customTemplates.update(ts => [...ts, tpl]);
+}
+
+export function deleteCustomTemplate(id: string) {
+  customTemplates.update(ts => ts.filter(t => t.id !== id));
 }
 
 // ============================================================
