@@ -203,6 +203,24 @@ export function removeMovementFromDay(dayIndex: number, movementId: string) {
   }));
 }
 
+export function reorderMovementInDay(dayIndex: number, movementId: string, direction: 'up' | 'down') {
+  workoutPlan.update(plan => ({
+    ...plan,
+    days: plan.days.map(d => {
+      if (d.dayIndex !== dayIndex) return d;
+      const idx = d.movementIds.indexOf(movementId);
+      if (idx === -1) return d;
+      const newIds = [...d.movementIds];
+      if (direction === 'up' && idx > 0) {
+        [newIds[idx - 1], newIds[idx]] = [newIds[idx], newIds[idx - 1]];
+      } else if (direction === 'down' && idx < newIds.length - 1) {
+        [newIds[idx + 1], newIds[idx]] = [newIds[idx], newIds[idx + 1]];
+      }
+      return { ...d, movementIds: newIds };
+    })
+  }));
+}
+
 export function saveCustomTemplate(name: string, description: string, days: WorkoutPlan['days']) {
   const id = `custom-${Date.now()}`;
   const tpl: PlanTemplate = {

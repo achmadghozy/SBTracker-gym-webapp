@@ -10,6 +10,7 @@
     customTemplates,
     saveCustomTemplate,
     deleteCustomTemplate,
+    reorderMovementInDay,
   } from "../stores/workout";
   import {
     MUSCLE_META,
@@ -20,6 +21,10 @@
   } from "../types";
   import { PLAN_TEMPLATES, type PlanTemplate } from "../data/planTemplates";
   import { MUSCLE_ICONS } from "../../assets/muscleIcons";
+  import { swipeClose } from "../actions/swipeClose";
+  import { fade, fly } from "svelte/transition";
+  import { flip } from "svelte/animate";
+  import { cubicOut } from "svelte/easing";
 
   // ── State ───────────────────────────────────────────────────
   const todayIdx = todayDayIndex(); // 0–13
@@ -106,6 +111,10 @@
 
   function removeMove(id: string) {
     removeMovementFromDay(selectedDay, id);
+  }
+
+  function reorderMove(id: string, direction: "up" | "down") {
+    reorderMovementInDay(selectedDay, id, direction);
   }
 
   function pickMovement(id: string) {
@@ -410,11 +419,12 @@
       {:else}
         <p class="section-label">Exercises</p>
         <div class="move-list" id="plan-move-list">
-          {#each dayMovements as move, i}
+          {#each dayMovements as move, i (move.id)}
             {@const mg = MUSCLE_META[move.muscleGroup]}
             <div
               class="plan-move-card card"
               id={`plan-move-${move.id}`}
+              animate:flip={{ duration: 250 }}
               style="animation-delay: {i * 30}ms"
             >
               <div class="flex items-center justify-between gap-3">
@@ -422,6 +432,7 @@
                   class="flex items-center gap-3 flex-1"
                   style="min-width: 0;"
                 >
+                  <span class="order-num">{i + 1}</span>
                   <span
                     class="move-emoji-wrap"
                     style="background: color-mix(in srgb, {mg.color} 14%, transparent); border-color: color-mix(in srgb, {mg.color} 28%, transparent);"
@@ -444,25 +455,63 @@
                     </div>
                   </div>
                 </div>
-                <button
-                  class="btn-icon remove-btn"
-                  onclick={() => removeMove(move.id)}
-                  aria-label="Remove {move.name}"
-                  id={`remove-move-${move.id}`}
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
+                <div class="flex items-center gap-2">
+                  <div class="order-controls">
+                    <button
+                      class="order-btn"
+                      onclick={() => reorderMove(move.id, "up")}
+                      disabled={i === 0}
+                      aria-label="Move up"
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                        stroke-linecap="round"><path d="M18 15l-6-6-6 6" /></svg
+                      >
+                    </button>
+                    <div class="order-divider"></div>
+                    <button
+                      class="order-btn"
+                      onclick={() => reorderMove(move.id, "down")}
+                      disabled={i === dayMovements.length - 1}
+                      aria-label="Move down"
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                        stroke-linecap="round"><path d="M6 9l6 6 6-6" /></svg
+                      >
+                    </button>
+                  </div>
+
+                  <button
+                    class="btn-icon remove-btn"
+                    onclick={() => removeMove(move.id)}
+                    aria-label="Remove {move.name}"
+                    id={`remove-move-${move.id}`}
                   >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                    >
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
           {/each}
@@ -510,6 +559,7 @@
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_interactive_supports_focus -->
   <div
     class="modal-overlay"
+    transition:fade={{ duration: 200 }}
     onclick={(e) => {
       if (e.target === e.currentTarget) closePicker();
     }}
@@ -517,6 +567,8 @@
   >
     <div
       class="modal-sheet picker-sheet"
+      transition:fly={{ y: "100%", duration: 300, easing: cubicOut }}
+      use:swipeClose={{ onClose: closePicker }}
       role="dialog"
       aria-modal="true"
       aria-label="Add exercise"
@@ -644,6 +696,7 @@
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_interactive_supports_focus -->
   <div
     class="modal-overlay"
+    transition:fade={{ duration: 200 }}
     onclick={(e) => {
       if (e.target === e.currentTarget) showTemplates = false;
     }}
@@ -652,6 +705,8 @@
   >
     <div
       class="modal-sheet tpl-sheet"
+      transition:fly={{ y: "100%", duration: 300, easing: cubicOut }}
+      use:swipeClose={{ onClose: () => (showTemplates = false) }}
       aria-modal="true"
       aria-label="Choose a plan template"
       tabindex="-1"
@@ -767,9 +822,15 @@
 
 <!-- ── Confirm Apply Dialog ── -->
 {#if pendingTpl}
-  <div class="confirm-overlay" id="tpl-confirm-overlay" tabindex="-1">
+  <div
+    class="confirm-overlay"
+    transition:fade={{ duration: 200 }}
+    id="tpl-confirm-overlay"
+    tabindex="-1"
+  >
     <div
       class="confirm-dialog"
+      transition:fly={{ y: 12, duration: 200, easing: cubicOut }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-title"
@@ -810,6 +871,7 @@
 {#if showSaveTemplate}
   <div
     class="modal-overlay"
+    transition:fade={{ duration: 200 }}
     onclick={(e) => {
       if (e.target === e.currentTarget) showSaveTemplate = false;
     }}
@@ -818,6 +880,7 @@
   >
     <div
       class="confirm-dialog"
+      transition:fly={{ y: 12, duration: 200, easing: cubicOut }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="save-template-title"
@@ -1385,18 +1448,6 @@
     width: 100%;
     text-align: center;
     box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
-    animation: slide-up 0.2s var(--ease) both;
-  }
-
-  @keyframes slide-up {
-    from {
-      transform: translateY(12px);
-      opacity: 0;
-    }
-    to {
-      transform: none;
-      opacity: 1;
-    }
   }
 
   .confirm-icon {
@@ -1449,5 +1500,44 @@
     to {
       transform: rotate(360deg);
     }
+  }
+
+  .order-num {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    min-width: 1.2rem;
+    text-align: center;
+  }
+  .order-controls {
+    display: flex;
+    align-items: center;
+    background: var(--surface-2);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+  }
+  .order-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    color: var(--text);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s var(--ease);
+  }
+  .order-btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--text) 5%, transparent);
+  }
+  .order-btn:disabled {
+    opacity: 0.25;
+    cursor: default;
+  }
+  .order-divider {
+    width: 1px;
+    height: 16px;
+    background: color-mix(in srgb, var(--text) 10%, transparent);
   }
 </style>

@@ -6,6 +6,9 @@
   } from '../stores/workout';
   import { MUSCLE_META, DAY_FULL, type Movement } from "../types";
   import { MUSCLE_ICONS } from '../../assets/muscleIcons';
+  import { swipeClose } from '../actions/swipeClose';
+  import { fade, fly } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
 
   // ── Computed today data ──────────────────────────────────────
   const now = new Date();
@@ -400,6 +403,7 @@
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_interactive_supports_focus -->
   <div
     class="modal-overlay"
+    transition:fade={{ duration: 200 }}
     tabindex="-1"
     onclick={(e) => {
       if (e.target === e.currentTarget) closeSheet();
@@ -408,6 +412,8 @@
   >
     <div
       class="modal-sheet weight-sheet"
+      transition:fly={{ y: '100%', duration: 300, easing: cubicOut }}
+      use:swipeClose={{ onClose: closeSheet }}
       aria-modal="true"
       aria-label="Log set weight"
       tabindex="-1"
@@ -558,6 +564,7 @@
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_interactive_supports_focus -->
   <div
     class="modal-overlay"
+    transition:fade={{ duration: 200 }}
     tabindex="-1"
     onclick={(e) => {
       if (e.target === e.currentTarget) closeProgress();
@@ -566,6 +573,8 @@
   >
     <div
       class="modal-sheet progress-sheet"
+      transition:fly={{ y: '100%', duration: 300, easing: cubicOut }}
+      use:swipeClose={{ onClose: closeProgress }}
       aria-modal="true"
       aria-label="Weight progress"
       tabindex="-1"

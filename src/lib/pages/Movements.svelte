@@ -13,6 +13,9 @@
     type MuscleGroup,
   } from "../types";
   import { MUSCLE_ICONS } from '../../assets/muscleIcons';
+  import { swipeClose } from '../actions/swipeClose';
+  import { fade, fly } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
 
   // ── Filter state ─────────────────────────────────────────────
   let activeFilter = $state<MuscleGroup | "all">("all");
@@ -264,6 +267,7 @@
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_interactive_supports_focus -->
   <div
     class="modal-overlay"
+    transition:fade={{ duration: 200 }}
     onclick={(e) => {
       if (e.target === e.currentTarget) closeForm();
     }}
@@ -272,6 +276,8 @@
   >
     <div
       class="modal-sheet"
+      transition:fly={{ y: '100%', duration: 300, easing: cubicOut }}
+      use:swipeClose={{ onClose: closeForm }}
       aria-modal="true"
       aria-label={editId ? "Edit exercise" : "Add exercise"}
       tabindex="-1"
@@ -335,6 +341,7 @@
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_interactive_supports_focus -->
   <div
     class="modal-overlay"
+    transition:fade={{ duration: 200 }}
     onclick={(e) => {
       if (e.target === e.currentTarget) cancelDelete();
     }}
@@ -343,6 +350,8 @@
   >
     <div
       class="modal-sheet delete-sheet"
+      transition:fly={{ y: '100%', duration: 300, easing: cubicOut }}
+      use:swipeClose={{ onClose: cancelDelete }}
       aria-modal="true"
       aria-label="Confirm delete"
       tabindex="-1"
