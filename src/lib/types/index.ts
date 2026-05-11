@@ -30,6 +30,8 @@ export interface Movement {
   name: string;
   muscleGroup: MuscleGroup;
   isCustom?: boolean;
+  instruction?: string;
+  instructionImage?: string;
 }
 
 export interface PlanDay {

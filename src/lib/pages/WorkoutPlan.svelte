@@ -20,6 +20,7 @@
     type Movement,
   } from "../types";
   import { PLAN_TEMPLATES, type PlanTemplate } from "../data/planTemplates";
+  import { defaultMovements } from "../data/defaultMovements";
   import { MUSCLE_ICONS } from "../../assets/muscleIcons";
   import { swipeClose } from "../actions/swipeClose";
   import { fade, fly } from "svelte/transition";
@@ -162,27 +163,65 @@
     showSaveTemplate = false;
   }
 
+  let applyError = $state<string | null>(null);
+  let infoTarget = $state<Movement | null>(null);
+  let showCopyModal = $state(false);
+
+  function openInfo(m: Movement) {
+    infoTarget = m;
+  }
+  function closeInfo() {
+    infoTarget = null;
+  }
+
+  let pendingCopyTarget = $state<number | null>(null);
+
+  function confirmCopyDay() {
+    if (!day || pendingCopyTarget === null) return;
+    updateDay(pendingCopyTarget, {
+      movementIds: [...day.movementIds],
+      isRest: day.isRest,
+      label: day.label
+    });
+    const targetIndex = pendingCopyTarget;
+    pendingCopyTarget = null;
+    showCopyModal = false;
+    selectDay(targetIndex);
+  }
+
+  function cancelCopyDay() {
+    pendingCopyTarget = null;
+  }
+
   function previewTemplate(tpl: PlanTemplate) {
     pendingTpl = tpl;
+    applyError = null;
   }
 
   async function confirmApply() {
     if (!pendingTpl) return;
 
     isApplying = true;
+    applyError = null;
     await new Promise((r) => setTimeout(r, 50));
 
-    applyPlanTemplate(pendingTpl.days);
-    // Reset selection to week 1, day 0
-    selectedWeek = 1;
-    selectedDay = 0;
-    pendingTpl = null;
-    showTemplates = false;
-    isApplying = false;
+    try {
+      await applyPlanTemplate(pendingTpl.days);
+      // Reset selection to week 1, day 0
+      selectedWeek = 1;
+      selectedDay = 0;
+      pendingTpl = null;
+      showTemplates = false;
+    } catch (err: any) {
+      applyError = err.message || "An error occurred while applying the template.";
+    } finally {
+      isApplying = false;
+    }
   }
 
   function cancelApply() {
     pendingTpl = null;
+    applyError = null;
   }
 </script>
 
@@ -371,16 +410,22 @@
         </div>
 
         <!-- Rest toggle -->
-        <div class="rest-toggle-wrap">
-          <span class="rest-toggle-lbl">Rest</span>
-          <label
-            class="toggle"
-            title="Toggle rest day"
-            id={`rest-toggle-${day.dayIndex}`}
-          >
-            <input type="checkbox" checked={day.isRest} onchange={toggleRest} />
-            <span class="toggle-track"></span>
-          </label>
+        <div style="display: flex; gap: 12px; align-items: center;">
+          <button class="btn-icon" style="color: var(--text-muted); width: 32px; height: 32px; background: var(--surface-2); border-radius: 8px;" onclick={() => showCopyModal = true} aria-label="Copy Day" title="Copy to another day">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+          </button>
+
+          <div class="rest-toggle-wrap">
+            <span class="rest-toggle-lbl">Rest</span>
+            <label
+              class="toggle"
+              title="Toggle rest day"
+              id={`rest-toggle-${day.dayIndex}`}
+            >
+              <input type="checkbox" checked={day.isRest} onchange={toggleRest} />
+              <span class="toggle-track"></span>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -421,11 +466,13 @@
         <div class="move-list" id="plan-move-list">
           {#each dayMovements as move, i (move.id)}
             {@const mg = MUSCLE_META[move.muscleGroup]}
+            <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
             <div
               class="plan-move-card card"
               id={`plan-move-${move.id}`}
               animate:flip={{ duration: 250 }}
-              style="animation-delay: {i * 30}ms"
+              style="animation-delay: {i * 30}ms; cursor: pointer;"
+              onclick={() => openInfo(move)}
             >
               <div class="flex items-center justify-between gap-3">
                 <div
@@ -444,8 +491,8 @@
                     />
                   </span>
                   <div
-                    class="flex-1 min-w-0"
-                    style="display: flex; flex-direction: column; justify-content: center; gap: 4px;"
+                    class="flex-1"
+                    style="display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0;"
                   >
                     <p class="move-name truncate">{move.name}</p>
                     <div style="display: flex; align-items: center;">
@@ -455,11 +502,11 @@
                     </div>
                   </div>
                 </div>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2" style="flex-shrink: 0;">
                   <div class="order-controls">
                     <button
                       class="order-btn"
-                      onclick={() => reorderMove(move.id, "up")}
+                      onclick={(e) => { e.stopPropagation(); reorderMove(move.id, "up"); }}
                       disabled={i === 0}
                       aria-label="Move up"
                     >
@@ -476,7 +523,7 @@
                     <div class="order-divider"></div>
                     <button
                       class="order-btn"
-                      onclick={() => reorderMove(move.id, "down")}
+                      onclick={(e) => { e.stopPropagation(); reorderMove(move.id, "down"); }}
                       disabled={i === dayMovements.length - 1}
                       aria-label="Move down"
                     >
@@ -494,7 +541,7 @@
 
                   <button
                     class="btn-icon remove-btn"
-                    onclick={() => removeMove(move.id)}
+                    onclick={(e) => { e.stopPropagation(); removeMove(move.id); }}
                     aria-label="Remove {move.name}"
                     id={`remove-move-${move.id}`}
                   >
@@ -675,12 +722,16 @@
                   </span>
                   <span class="picker-name">{move.name}</span>
                 </div>
-                <span class="picker-meta">
+                <span class="picker-meta" style="display: flex; align-items: center;">
                   {#if alreadyAdded}
                     <span style="color: var(--green);">✓ Added</span>
                   {:else}
                     {MUSCLE_META[move.muscleGroup].label}
                   {/if}
+                  <!-- svelte-ignore a11y_click_events_have_key_events a11y_interactive_supports_focus -->
+                  <span class="btn-icon" style="margin-left: 8px; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;" role="button" onclick={(e) => { e.stopPropagation(); openInfo(move); }} aria-label="Info">
+                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                  </span>
                 </span>
               </button>
             {/each}
@@ -863,6 +914,11 @@
           {/if}
         </button>
       </div>
+      {#if applyError}
+        <p class="error-msg" style="color: var(--red, #ef4444); font-size: 0.85rem; margin-top: 1rem; line-height: 1.4;">
+          {applyError}
+        </p>
+      {/if}
     </div>
   </div>
 {/if}
@@ -935,6 +991,155 @@
         >
           Save Template
         </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- ── Copy Day Modal ── -->
+{#if showCopyModal}
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_interactive_supports_focus -->
+  <div
+    class="modal-overlay"
+    transition:fade={{ duration: 200 }}
+    onclick={(e) => {
+      if (e.target === e.currentTarget) showCopyModal = false;
+    }}
+    id="copy-modal"
+    style="z-index: 10000;"
+  >
+    <div
+      class="modal-sheet"
+      transition:fly={{ y: "100%", duration: 300, easing: cubicOut }}
+      use:swipeClose={{ onClose: () => (showCopyModal = false) }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="copy-title"
+    >
+      <div class="modal-handle"></div>
+      
+      <h2 class="modal-title" id="copy-title">Copy to...</h2>
+      <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem;">
+        Select a destination day for "{day?.label || DAY_FULL[day?.dayIndex ?? 0]}"
+      </p>
+
+      <div style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 50vh; overflow-y: auto; margin-bottom: 1rem;">
+        {#each $workoutPlan.days as d}
+          {#if d.dayIndex !== day?.dayIndex}
+            <button
+              class="tpl-card"
+              style="text-align: left; padding: 0.75rem;"
+              onclick={() => { pendingCopyTarget = d.dayIndex; }}
+            >
+              <div style="display: flex; justify-content: space-between; width: 100%; align-items: center; gap: 12px;">
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-weight: 800; font-size: 1.1rem; color: var(--text);">{DAY_FULL[d.dayIndex % 7]}</span>
+                    <span class="badge badge-accent" style="font-size: 0.65rem; padding: 2px 6px;">Week {d.dayIndex < 7 ? 1 : 2}</span>
+                  </div>
+                  <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                    {d.isRest ? "😴 Rest Day" : d.label || "Workout Day"}
+                  </div>
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); background: var(--surface-2); padding: 4px 8px; border-radius: 6px; font-weight: 600;">
+                  {d.movementIds.length} {d.movementIds.length === 1 ? 'exercise' : 'exercises'}
+                </div>
+              </div>
+            </button>
+          {/if}
+        {/each}
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- ── Confirm Copy Dialog ── -->
+{#if pendingCopyTarget !== null}
+  <div
+    class="confirm-overlay"
+    transition:fade={{ duration: 200 }}
+    id="copy-confirm-overlay"
+    tabindex="-1"
+    style="z-index: 10001;"
+  >
+    <div
+      class="confirm-dialog"
+      transition:fly={{ y: 12, duration: 200, easing: cubicOut }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-copy-title"
+    >
+      <span class="confirm-icon" style="font-size: 2.5rem; margin-bottom: 0.5rem; display: block;">⚠️</span>
+      <h3 class="confirm-title" id="confirm-copy-title">
+        Replace {DAY_FULL[pendingCopyTarget % 7]}?
+      </h3>
+      <p class="confirm-body">
+        This will replace the workout plan for <strong>{DAY_FULL[pendingCopyTarget % 7]} (Week {pendingCopyTarget < 7 ? 1 : 2})</strong> with your current day's plan.
+      </p>
+      <div class="confirm-btns">
+        <button
+          class="btn btn-secondary"
+          onclick={cancelCopyDay}
+          id="confirm-copy-cancel-btn">Cancel</button
+        >
+        <button
+          class="btn btn-danger"
+          onclick={confirmCopyDay}
+          id="confirm-copy-apply-btn"
+        >
+          Replace
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- ── Info Modal ── -->
+{#if infoTarget}
+  {@const defaultMove = defaultMovements.find(m => m.id === infoTarget?.id)}
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_interactive_supports_focus -->
+  <div
+    class="modal-overlay"
+    transition:fade={{ duration: 200 }}
+    onclick={(e) => {
+      if (e.target === e.currentTarget) closeInfo();
+    }}
+    id="info-modal"
+    style="z-index: 10002;"
+  >
+    <div
+      class="modal-sheet"
+      transition:fly={{ y: "100%", duration: 300, easing: cubicOut }}
+      use:swipeClose={{ onClose: closeInfo }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="info-title"
+    >
+      <div class="modal-handle"></div>
+      
+      <h2 class="modal-title" id="info-title">{infoTarget.name}</h2>
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 1rem;">
+        <span class="badge badge-mg" style="--mg: {MUSCLE_META[infoTarget.muscleGroup].color}">
+          {MUSCLE_META[infoTarget.muscleGroup].label}
+        </span>
+      </div>
+
+      {#if infoTarget.instructionImage || defaultMove?.instructionImage}
+        <div style="width: 100%; display: flex; justify-content: center; margin-bottom: 1rem; border-radius: var(--radius-md); overflow: hidden; background: var(--surface-2); border: 1px solid var(--border);">
+          <img src={infoTarget.instructionImage || defaultMove?.instructionImage} alt="Instruction" style="max-width: 100%; max-height: 250px; object-fit: contain;" />
+        </div>
+      {:else}
+        <div class="info-placeholder-img" style="width: 100%; aspect-ratio: 16/9; background: color-mix(in srgb, {MUSCLE_META[infoTarget.muscleGroup].color} 8%, var(--surface-2)); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: var(--text-muted); border: 1px dashed color-mix(in srgb, {MUSCLE_META[infoTarget.muscleGroup].color} 30%, var(--border));">
+          <img src={MUSCLE_ICONS[infoTarget.muscleGroup]} alt="Placeholder" style="width: 80px; height: 80px; opacity: 0.6; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.1));" />
+        </div>
+      {/if}
+
+      <div class="info-instruction" style="font-size: 0.95rem; color: var(--text); line-height: 1.5; padding-bottom: 2rem;">
+        {#if infoTarget.instruction || defaultMove?.instruction}
+          <p>{infoTarget.instruction || defaultMove?.instruction}</p>
+        {:else}
+          <p style="color: var(--text-muted); font-style: italic;">No instructions available.</p>
+        {/if}
       </div>
     </div>
   </div>

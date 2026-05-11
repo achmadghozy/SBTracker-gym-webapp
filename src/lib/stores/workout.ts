@@ -170,8 +170,15 @@ export function deleteMovement(id: string) {
 // ============================================================
 
 /** Replace the entire workout plan with a new set of days (e.g. from a template). */
-export function applyPlanTemplate(days: WorkoutPlan['days']) {
-  workoutPlan.set({ days });
+export async function applyPlanTemplate(days: WorkoutPlan['days']) {
+  const newPlan = { days };
+  try {
+    await set('sb-plan', JSON.parse(JSON.stringify(newPlan)));
+  } catch (err: any) {
+    console.error("IndexedDB save error:", err);
+    throw new Error(err.message || 'Failed to save to local storage.');
+  }
+  workoutPlan.set(newPlan);
 }
 
 export function updateDay(dayIndex: number, patch: Partial<WorkoutPlan['days'][0]>) {

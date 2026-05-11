@@ -16,6 +16,7 @@
   import { swipeClose } from '../actions/swipeClose';
   import { fade, fly } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
+  import { defaultMovements } from '../data/defaultMovements';
 
   // ── Filter state ─────────────────────────────────────────────
   let activeFilter = $state<MuscleGroup | "all">("all");
@@ -82,6 +83,17 @@
 
   function cancelDelete() {
     deleteTarget = null;
+  }
+
+  // ── Info sheet ────────────────────────────────────────────────
+  let infoTarget = $state<Movement | null>(null);
+
+  function openInfo(m: Movement) {
+    infoTarget = m;
+  }
+
+  function closeInfo() {
+    infoTarget = null;
   }
 </script>
 
@@ -166,11 +178,13 @@
 
         <div class="moves-grid">
           {#each group.moves as move, i}
-            <div
-              class="move-card card"
-              id={`move-lib-${move.id}`}
-              style="animation-delay: {i * 20}ms"
-            >
+              <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+              <div
+                class="move-card card"
+                id={`move-lib-${move.id}`}
+                style="animation-delay: {i * 20}ms; cursor: pointer;"
+                onclick={() => openInfo(move)}
+              >
               <div class="flex items-start justify-between gap-2">
                 <!-- Left: icon + name -->
                 <div
@@ -208,7 +222,7 @@
                 <div class="move-actions">
                   <button
                     class="btn-icon action-btn"
-                    onclick={() => openEdit(move)}
+                    onclick={(e) => { e.stopPropagation(); openEdit(move); }}
                     aria-label="Edit {move.name}"
                     id={`edit-move-${move.id}`}
                   >
@@ -232,7 +246,7 @@
                   </button>
                   <button
                     class="btn-icon action-btn danger-btn"
-                    onclick={() => requestDelete(move)}
+                    onclick={(e) => { e.stopPropagation(); requestDelete(move); }}
                     aria-label="Delete {move.name}"
                     id={`delete-move-${move.id}`}
                   >
@@ -382,6 +396,56 @@
         >
           Remove
         </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- ── Info Modal ── -->
+{#if infoTarget}
+  {@const defaultMove = defaultMovements.find(m => m.id === infoTarget?.id)}
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_interactive_supports_focus -->
+  <div
+    class="modal-overlay"
+    transition:fade={{ duration: 200 }}
+    onclick={(e) => {
+      if (e.target === e.currentTarget) closeInfo();
+    }}
+    id="info-modal"
+  >
+    <div
+      class="modal-sheet"
+      transition:fly={{ y: "100%", duration: 300, easing: cubicOut }}
+      use:swipeClose={{ onClose: closeInfo }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="info-title"
+    >
+      <div class="modal-handle"></div>
+      
+      <h2 class="modal-title" id="info-title">{infoTarget.name}</h2>
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 1rem;">
+        <span class="badge badge-mg" style="--mg: {MUSCLE_META[infoTarget.muscleGroup].color}">
+          {MUSCLE_META[infoTarget.muscleGroup].label}
+        </span>
+      </div>
+
+      {#if infoTarget.instructionImage || defaultMove?.instructionImage}
+        <div style="width: 100%; display: flex; justify-content: center; margin-bottom: 1rem; border-radius: var(--radius-md); overflow: hidden; background: var(--surface-2); border: 1px solid var(--border);">
+          <img src={infoTarget.instructionImage || defaultMove?.instructionImage} alt="Instruction" style="max-width: 100%; max-height: 250px; object-fit: contain;" />
+        </div>
+      {:else}
+        <div class="info-placeholder-img" style="width: 100%; aspect-ratio: 16/9; background: color-mix(in srgb, {MUSCLE_META[infoTarget.muscleGroup].color} 8%, var(--surface-2)); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: var(--text-muted); border: 1px dashed color-mix(in srgb, {MUSCLE_META[infoTarget.muscleGroup].color} 30%, var(--border));">
+          <img src={MUSCLE_ICONS[infoTarget.muscleGroup]} alt="Placeholder" style="width: 80px; height: 80px; opacity: 0.6; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.1));" />
+        </div>
+      {/if}
+
+      <div class="info-instruction" style="font-size: 0.95rem; color: var(--text); line-height: 1.5; padding-bottom: 2rem;">
+        {#if infoTarget.instruction || defaultMove?.instruction}
+          <p>{infoTarget.instruction || defaultMove?.instruction}</p>
+        {:else}
+          <p style="color: var(--text-muted); font-style: italic;">No instructions available.</p>
+        {/if}
       </div>
     </div>
   </div>
